@@ -1,0 +1,22 @@
+[Unit]
+Description=btedge Bluetooth mesh node
+After=bluetooth.service network-online.target
+Wants=bluetooth.service network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/btedge
+ExecStart=/usr/bin/python3 -m btedge --config /etc/btedge/config.json
+Environment=PYTHONUNBUFFERED=1
+StateDirectory=btedge
+Restart=on-failure
+RestartSec=5
+# Runs as root: BlueZ must call back into our BLE advertisement object.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=96M
+
+[Install]
+WantedBy=multi-user.target

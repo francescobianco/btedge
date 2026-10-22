@@ -1,0 +1,16 @@
+{
+  "node_name": "orangepizero",
+  "http": {"host": "0.0.0.0", "port": 8080},
+  "scanner": {
+    "backend": "bluez",
+    "adapter": null,
+    "device_ttl": 60,
+    "advertise": true
+  },
+  "mesh": {
+    "key": "change-me",
+    "gossip_interval": 5,
+    "lan": {"enabled": true, "group": "239.255.66.77", "port": 47474},
+    "peers": []
+  }
+}

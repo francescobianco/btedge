@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>btedge</title>
+<style>
+:root {
+  --bg: #f6f7f9; --surface: #ffffff; --line: #e3e6eb; --text: #16191d; --muted: #6a7280;
+  --accent: #2f6fdf; --ok: #1f9d55; --warn: #c98a0b; --bad: #d04545; --chip: #eef2f8;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --surface: #171b21; --line: #262c35; --text: #e6e9ee; --muted: #8b94a3;
+    --accent: #6b9cff; --ok: #3fc07a; --warn: #e2a72e; --bad: #f06a6a; --chip: #212833;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { background: var(--surface); border-bottom: 1px solid var(--line); }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 14px 0; }
+.brand { font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
+.brand small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  background: var(--chip); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+main { padding: 20px 0 40px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.stat b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 12px; }
+section { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
+.head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.head h2 { margin: 0; font-size: 15px; }
+.head .tools { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+input[type=search], select { background: var(--bg); color: var(--text); border: 1px solid var(--line);
+  border-radius: 7px; padding: 6px 10px; font: inherit; }
+input[type=search] { width: 220px; max-width: 100%; }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+tr.stale td { opacity: .5; }
+.mono { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.name { font-weight: 600; }
+.name.unknown { font-weight: 400; color: var(--muted); font-style: italic; }
+.meta { color: var(--muted); font-size: 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { background: var(--chip); border-radius: 6px; padding: 1px 7px; font-size: 12px; white-space: nowrap; }
+.chip.me { outline: 1px solid var(--accent); }
+.sig { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.bar { flex: 1; height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; min-width: 60px; }
+.bar i { display: block; height: 100%; border-radius: 3px; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--chip); color: var(--muted); }
+.tag.self { background: var(--accent); color: #fff; }
+.empty { padding: 28px 14px; text-align: center; color: var(--muted); }
+.err { color: var(--bad); font-size: 12px; }
+@media (max-width: 640px) {
+  .hide-sm { display: none; }
+  th, td { padding: 8px 10px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap top">
+    <div class="brand">btedge <small id="node">…</small></div>
+    <div class="pills" id="pills"></div>
+  </div>
+</header>
+<main class="wrap">
+  <div class="stats">
+    <div class="stat"><b id="s-local">–</b><span>dispositivi vicini a questo nodo</span></div>
+    <div class="stat"><b id="s-mesh">–</b><span>dispositivi nella mesh</span></div>
+    <div class="stat"><b id="s-nodes">–</b><span>nodi attivi</span></div>
+    <div class="stat"><b id="s-conn">–</b><span>connessi</span></div>
+  </div>
+
+  <section>
+    <div class="head"><h2>Nodi della mesh</h2></div>
+    <div class="scroll"><table>
+      <thead><tr><th>Nodo</th><th>Collegamento</th><th class="hide-sm">Salti</th><th>Dispositivi</th><th class="hide-sm">Radio BT</th><th>Aggiornato</th></tr></thead>
+      <tbody id="nodes"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Dispositivi Bluetooth</h2>
+      <div class="tools">
+        <select id="scope">
+          <option value="all">Tutta la mesh</option>
+          <option value="local">Solo questo nodo</option>
+        </select>
+        <input type="search" id="filter" placeholder="Filtra nome, indirizzo, nodo…">
+      </div>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>Dispositivo</th><th>Segnale migliore</th><th>Visto da</th><th>Ultimo avvistamento</th></tr></thead>
+      <tbody id="devices"></tbody>
+    </table></div>
+  </section>
+  <p class="meta" id="footer"></p>
+</main>
+<script>
+const MAKERS = {0x004C:"Apple",0x0006:"Microsoft",0x0075:"Samsung",0x00E0:"Google",0x0087:"Garmin",
+  0x0157:"Huami",0x038F:"Xiaomi",0x0059:"Nordic",0x02E5:"Espressif",0x0171:"Amazon",0x0057:"Harman",
+  0x00C7:"Tile",0x0224:"Fitbit",0x009E:"Bose",0x01DA:"Logitech",0x000F:"Broadcom",0x0131:"Cypress",
+  0x00D2:"Dialog",0x0310:"SGL Italia",0x027D:"Huawei",0x0499:"Ruuvi",0x0822:"Adafruit"};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ago = s => s == null ? "–" : s < 5 ? "ora" : s < 60 ? Math.round(s) + " s fa" : s < 3600 ? Math.round(s / 60) + " min fa" : Math.round(s / 3600) + " h fa";
+const VIA = {lan: "LAN multicast", ip: "IP / internet"};
+let last = null;
+
+function signal(rssi) {
+  if (rssi == null) return '<span class="meta">–</span>';
+  const pct = Math.max(0, Math.min(100, (rssi + 100) / 70 * 100));
+  const color = rssi > -60 ? "var(--ok)" : rssi > -80 ? "var(--warn)" : "var(--bad)";
+  return `<div class="sig"><div class="bar"><i style="width:${pct}%;background:${color}"></i></div><span class="num">${rssi} dBm</span></div>`;
+}
+
+function pill(label, state) {
+  return `<span class="pill"><span class="dot ${state}"></span>${esc(label)}</span>`;
+}
+
+function renderPills(st) {
+  const p = [];
+  const sc = st.scanner || {};
+  const scState = sc.state === "scanning" ? "ok" : sc.state === "starting" ? "warn" : "bad";
+  p.push(pill(sc.state === "scanning" ? `Scansione attiva (${sc.adapter})` :
+    sc.state === "no_adapter" ? "Nessun adattatore BT" : sc.state === "starting" ? "Avvio…" : "Errore Bluetooth", scState));
+  if (sc.backend === "bluez") p.push(pill(sc.advertising ? "Beacon BLE attivo" : "Beacon BLE spento", sc.advertising ? "ok" : "warn"));
+  const m = st.mesh || {};
+  if (m.lan && m.lan.enabled) p.push(pill("LAN " + m.lan.group, m.lan.error ? "bad" : "ok"));
+  for (const peer of m.peers || []) p.push(pill(peer.url.replace(/^https?:\/\//, ""), peer.ok ? "ok" : peer.ok === false ? "bad" : "warn"));
+  p.push(pill(m.signed ? "Mesh firmata" : "Mesh senza chiave", m.signed ? "ok" : "warn"));
+  $("pills").innerHTML = p.join("");
+}
+
+function renderNodes(st) {
+  $("nodes").innerHTML = st.nodes.map(n => {
+    const link = n.self ? '<span class="tag self">questo nodo</span>'
+      : n.link ? `${esc(VIA[n.link.via] || n.link.via)} <span class="mono">${esc(n.link.addr || "")}</span>`
+      : '<span class="meta">tramite altri nodi</span>';
+    const bt = n.bt ? signal(n.bt.rssi) : '<span class="meta">non in portata</span>';
+    return `<tr><td><div class="name">${esc(n.name)}</div><div class="mono">${esc(n.id)}</div></td>
+      <td>${link}</td><td class="hide-sm num">${n.self ? "–" : n.hops}</td><td class="num">${n.devices}</td>
+      <td class="hide-sm">${n.self ? '<span class="meta">–</span>' : bt}</td><td class="num">${n.self ? "ora" : ago(n.age)}</td></tr>`;
+  }).join("");
+}
+
+function describe(d) {
+  const bits = [];
+  if (d.manufacturer) bits.push(d.manufacturer.map(m => MAKERS[m] || "0x" + m.toString(16).padStart(4, "0")).join(", "));
+  if (d.icon) bits.push(d.icon);
+  if (d.address_type) bits.push(d.address_type === "random" ? "indirizzo casuale" : "indirizzo pubblico");
+  if (d.paired) bits.push("associato");
+  if (d.btedge_node) bits.push("nodo btedge " + d.btedge_node);
+  return bits.join(" · ");
+}
+
+function renderDevices(st) {
+  const q = $("filter").value.trim().toLowerCase();
+  const scope = $("scope").value;
+  const me = st.node.id;
+  const rows = st.devices.filter(d => {
+    if (scope === "local" && !d.local) return false;
+    if (!q) return true;
+    const hay = [d.name, d.address, describe(d), ...d.seen_by.map(s => s.name)].join(" ").toLowerCase();
+    return hay.includes(q);
+  });
+  if (!rows.length) {
+    $("devices").innerHTML = `<tr><td colspan="4" class="empty">${st.devices.length ? "Nessun dispositivo corrisponde al filtro." : "Nessun dispositivo rilevato per ora."}</td></tr>`;
+    return;
+  }
+  $("devices").innerHTML = rows.map(d => {
+    const chips = d.seen_by.map(s => `<span class="chip${s.node === me ? " me" : ""}" title="${esc(s.node)} · ${ago(s.age)}">${esc(s.name)}${s.rssi != null ? " " + s.rssi : ""}${s.connected ? " · connesso" : ""}</span>`).join("");
+    return `<tr class="${d.age > 30 ? "stale" : ""}"><td>
+        <div class="name${d.name ? "" : " unknown"}">${esc(d.name || "senza nome")}</div>
+        <div class="mono">${esc(d.address)}</div><div class="meta">${esc(describe(d))}</div></td>
+      <td>${signal(d.rssi)}</td><td><div class="chips">${chips}</div></td><td class="num">${ago(d.age)}</td></tr>`;
+  }).join("");
+}
+
+function render(st) {
+  last = st;
+  $("node").textContent = `${st.node.name} · ${st.node.id}`;
+  document.title = `btedge · ${st.node.name}`;
+  renderPills(st);
+  renderNodes(st);
+  renderDevices(st);
+  $("s-local").textContent = st.devices.filter(d => d.local).length;
+  $("s-mesh").textContent = st.devices.length;
+  $("s-nodes").textContent = st.nodes.length;
+  $("s-conn").textContent = st.devices.filter(d => d.seen_by.some(s => s.connected)).length;
+  const err = st.scanner && (st.scanner.error || st.scanner.beacon_error);
+  $("footer").innerHTML = `btedge ${esc(st.version)} · aggiornato ${new Date(st.time * 1000).toLocaleTimeString()}` +
+    (err ? ` · <span class="err">${esc(err)}</span>` : "");
+}
+
+async function poll() {
+  try {
+    const res = await fetch("api/state", {cache: "no-store"});
+    render(await res.json());
+  } catch (e) {
+    $("footer").innerHTML = `<span class="err">Nodo non raggiungibile: ${esc(e.message)}</span>`;
+  }
+  setTimeout(poll, 2000);
+}
+$("filter").addEventListener("input", () => last && renderDevices(last));
+$("scope").addEventListener("change", () => last && renderDevices(last));
+poll();
+</script>
+</body>
+</html>

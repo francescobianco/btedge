@@ -1,6 +1,8 @@
 #!/bin/sh
 # Install or update btedge as a systemd service. Run as root from a checkout of the repo.
+# Usage: install.sh [config.json]   (the file is used only if /etc/btedge/config.json is missing)
 set -eu
+CONFIG=${1:-}
 
 SRC=$(cd "$(dirname "$0")/.." && pwd)
 DEST=/opt/btedge
@@ -14,7 +16,10 @@ if [ "$SRC" != "$DEST" ]; then
 fi
 
 mkdir -p /etc/btedge
-if [ ! -f /etc/btedge/config.json ]; then
+if [ ! -f /etc/btedge/config.json ] && [ -n "$CONFIG" ]; then
+    install -m 600 "$CONFIG" /etc/btedge/config.json
+    echo "installed /etc/btedge/config.json from $CONFIG"
+elif [ ! -f /etc/btedge/config.json ]; then
     sed "s/\"orangepizero\"/\"$(hostname)\"/; s/\"change-me\"/\"$(head -c 16 /dev/urandom | od -An -tx1 | tr -d " \n")\"/" \
         "$SRC/deploy/config.example.json" > /etc/btedge/config.json
     chmod 600 /etc/btedge/config.json

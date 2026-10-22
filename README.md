@@ -51,6 +51,10 @@ Il pannello è su `http://<ip-del-nodo>:4646`. La configurazione è in
 stessa mesh i nodi devono avere la stessa `mesh.key`. Per aggiornare:
 `cd /opt/btedge && sudo git pull && sudo systemctl restart btedge`.
 
+Su macchine con VPN o molti bridge (Docker) imposta `mesh.lan.interface` (es. `"eth0"`),
+altrimenti il multicast segue la rotta di default e può finire nel tunnel. Per usare
+una configurazione già pronta: `sudo deploy/install.sh /percorso/config.json`.
+
 ## Sviluppo
 
 ```sh

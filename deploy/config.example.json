@@ -10,7 +10,7 @@
   "mesh": {
     "key": "change-me",
     "gossip_interval": 5,
-    "lan": {"enabled": true, "group": "239.255.66.77", "port": 47474},
+    "lan": {"enabled": true, "group": "239.255.66.77", "port": 47474, "interface": null},
     "peers": []
   }
 }

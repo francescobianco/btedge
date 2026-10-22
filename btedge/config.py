@@ -30,7 +30,8 @@ DEFAULTS = {
         "gossip_interval": 5,
         "node_ttl": 60,
         "max_hops": 8,
-        "lan": {"enabled": True, "group": "239.255.66.77", "port": 47474},
+        # interface: name or IPv4 of the LAN interface; None follows the routing table
+        "lan": {"enabled": True, "group": "239.255.66.77", "port": 47474, "interface": None},
         "peers": [],          # e.g. ["http://node.example.org:4646"]
     },
 }

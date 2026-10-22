@@ -5,6 +5,7 @@ neighbours with zero configuration; IP peers let nodes on different networks
 (or behind NAT, talking to a public node) join the same mesh. Every node
 forwards the states it knows, so the mesh spans all of them.
 """
+import fcntl
 import logging
 import socket
 import struct
@@ -18,6 +19,19 @@ from . import protocol
 log = logging.getLogger(__name__)
 
 UDP_LIMIT = 60000
+SIOCGIFADDR = 0x8915
+
+
+def interface_address(name):
+    """IPv4 address of a network interface (name like "eth0", or an address as-is)."""
+    try:
+        socket.inet_aton(name)
+        return name
+    except OSError:
+        pass
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        ifreq = struct.pack("256s", name.encode()[:15])
+        return socket.inet_ntoa(fcntl.ioctl(sock.fileno(), SIOCGIFADDR, ifreq)[20:24])
 
 
 class Mesh:
@@ -75,8 +89,13 @@ class Mesh:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(("", port))
-        mreq = struct.pack("4s4s", socket.inet_aton(group), socket.inet_aton("0.0.0.0"))
+        # Without an explicit interface the kernel follows the routing table, which on
+        # machines with a VPN default route sends multicast into the tunnel.
+        local = interface_address(self.lan_cfg["interface"]) if self.lan_cfg.get("interface") else "0.0.0.0"
+        mreq = struct.pack("4s4s", socket.inet_aton(group), socket.inet_aton(local))
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        if local != "0.0.0.0":
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(local))
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 1)
         self._sock = sock
         self._group = (group, port)

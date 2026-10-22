@@ -16,7 +16,7 @@ DEFAULTS = {
     "node_id": None,
     "node_name": socket.gethostname(),
     "state_dir": "/var/lib/btedge",
-    "http": {"host": "0.0.0.0", "port": 8080},
+    "http": {"host": "0.0.0.0", "port": 4646},
     "scanner": {
         "backend": "bluez",   # "bluez" or "fake"
         "adapter": None,      # e.g. "hci0"; None picks the first adapter
@@ -31,7 +31,7 @@ DEFAULTS = {
         "node_ttl": 60,
         "max_hops": 8,
         "lan": {"enabled": True, "group": "239.255.66.77", "port": 47474},
-        "peers": [],          # e.g. ["http://node.example.org:8080"]
+        "peers": [],          # e.g. ["http://node.example.org:4646"]
     },
 }
 

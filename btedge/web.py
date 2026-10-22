@@ -14,7 +14,7 @@ STATIC = os.path.join(os.path.dirname(__file__), "static")
 
 
 class Panel:
-    def __init__(self, registry, mesh, backend, host="0.0.0.0", port=8080):
+    def __init__(self, registry, mesh, backend, host="0.0.0.0", port=4646):
         self.registry = registry
         self.mesh = mesh
         self.backend = backend

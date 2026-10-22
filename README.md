@@ -46,7 +46,7 @@ git clone https://github.com/francescobianco/btedge /opt/btedge
 sudo /opt/btedge/deploy/install.sh
 ```
 
-Il pannello è su `http://<ip-del-nodo>:8080`. La configurazione è in
+Il pannello è su `http://<ip-del-nodo>:4646`. La configurazione è in
 `/etc/btedge/config.json` (vedi `deploy/config.example.json`); per far parte della
 stessa mesh i nodi devono avere la stessa `mesh.key`. Per aggiornare:
 `cd /opt/btedge && sudo git pull && sudo systemctl restart btedge`.
@@ -54,7 +54,7 @@ stessa mesh i nodi devono avere la stessa `mesh.key`. Per aggiornare:
 ## Sviluppo
 
 ```sh
-python3 -m btedge --fake --port 8080   # dispositivi simulati, nessun Bluetooth richiesto
+python3 -m btedge --fake --port 4646   # dispositivi simulati, nessun Bluetooth richiesto
 python3 -m unittest discover -s tests
 ```
 

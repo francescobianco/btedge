@@ -25,4 +25,4 @@ install -m 644 "$SRC/deploy/btedge.service" /etc/systemd/system/btedge.service
 systemctl daemon-reload
 systemctl enable btedge.service
 systemctl restart btedge.service
-echo "btedge running: http://$(hostname -I | awk '{print $1}'):8080"
+echo "btedge running: http://$(hostname -I | awk '{print $1}'):4646"

@@ -18,7 +18,7 @@ class Clock:
 
 
 def node(node_id, name):
-    return {"id": node_id, "name": name, "http": 8080}
+    return {"id": node_id, "name": name, "http": 4646}
 
 
 MESH_CFG = {"key": "secret", "gossip_interval": 5, "node_ttl": 60, "max_hops": 8,

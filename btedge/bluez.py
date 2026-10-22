@@ -102,7 +102,7 @@ class BluezBackend:
         self._bus.add_signal_receiver(self._on_changed, dbus_interface=PROPS,
                                       signal_name="PropertiesChanged", arg0=DEVICE,
                                       path_keyword="path")
-        GLib.idle_add(self._tick)
+        GLib.idle_add(lambda: self._tick() and False)  # run once now, then on the timer
         GLib.timeout_add_seconds(self.rescan_interval, self._tick)
         GLib.MainLoop().run()
 

@@ -1,6 +1,6 @@
 {
   "node_name": "orangepizero",
-  "http": {"host": "0.0.0.0", "port": 8080},
+  "http": {"host": "0.0.0.0", "port": 4646},
   "scanner": {
     "backend": "bluez",
     "adapter": null,

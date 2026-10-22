@@ -22,6 +22,7 @@ DEFAULTS = {
         "adapter": None,      # e.g. "hci0"; None picks the first adapter
         "device_ttl": 60,     # seconds a device stays listed after its last advert
         "cache_ttl": 300,     # seconds before unpaired devices are dropped from BlueZ
+        "rescan_interval": 20,  # seconds per discovery session; must stay well below device_ttl
         "advertise": True,    # broadcast a BLE beacon so other nodes see us over the air
     },
     "mesh": {

@@ -54,12 +54,14 @@ def device_fields(props):
 
 
 class BluezBackend:
-    def __init__(self, registry, node_id, adapter=None, advertise=True, cache_ttl=300):
+    def __init__(self, registry, node_id, adapter=None, advertise=True, cache_ttl=300, rescan_interval=20):
         self.registry = registry
         self.node_id = node_id
         self.adapter_name = adapter
         self.advertise = advertise
         self.cache_ttl = cache_ttl
+        self.rescan_interval = rescan_interval
+        self._discovery_started = 0.0
         self.status = {"backend": "bluez", "state": "starting", "adapter": None,
                        "advertising": False, "beacon_error": None, "error": None}
         self._adapter = None
@@ -101,7 +103,7 @@ class BluezBackend:
                                       signal_name="PropertiesChanged", arg0=DEVICE,
                                       path_keyword="path")
         GLib.idle_add(self._tick)
-        GLib.timeout_add_seconds(15, self._tick)
+        GLib.timeout_add_seconds(self.rescan_interval, self._tick)
         GLib.MainLoop().run()
 
     # -- adapter supervision ------------------------------------------------
@@ -142,17 +144,29 @@ class BluezBackend:
         props = dbus.Interface(obj, PROPS)
         if not props.Get(ADAPTER, "Powered"):
             props.Set(ADAPTER, "Powered", dbus.Boolean(True))
-        if not props.Get(ADAPTER, "Discovering"):
-            adapter = dbus.Interface(obj, ADAPTER)
+        # BlueZ filters duplicate adverts during a discovery session (reporting every
+        # advert floods D-Bus and costs a whole core on small boards), so the session is
+        # restarted periodically: each device still in range is then reported again.
+        adapter = dbus.Interface(obj, ADAPTER)
+        if props.Get(ADAPTER, "Discovering"):
+            if time.monotonic() - self._discovery_started >= self.rescan_interval:
+                try:
+                    adapter.StopDiscovery()
+                except dbus.DBusException:
+                    pass
+                adapter.StartDiscovery()
+                self._discovery_started = time.monotonic()
+        else:
             try:
-                adapter.SetDiscoveryFilter({"DuplicateData": dbus.Boolean(True)})
+                adapter.SetDiscoveryFilter({"DuplicateData": dbus.Boolean(False)})
             except dbus.DBusException:
                 pass
             adapter.StartDiscovery()
+            self._discovery_started = time.monotonic()
             log.info("discovery started")
         if self.advertise and self._adv_supported and not self.status["advertising"] and not self._adv_pending:
             self._register_advertisement(obj)
-        self._prune_cache(dbus.Interface(obj, ADAPTER))
+        self._prune_cache(adapter)
         self._set(state="scanning", error=None)
 
     def _prune_cache(self, adapter):

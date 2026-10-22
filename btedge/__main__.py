@@ -37,7 +37,8 @@ def main(argv=None):
         backend = FakeBackend(registry)
     else:
         backend = BluezBackend(registry, node["id"], adapter=scanner["adapter"],
-                               advertise=scanner["advertise"], cache_ttl=scanner["cache_ttl"])
+                               advertise=scanner["advertise"], cache_ttl=scanner["cache_ttl"],
+                               rescan_interval=scanner["rescan_interval"])
     mesh = Mesh(registry, cfg["mesh"])
     panel = Panel(registry, mesh, backend, cfg["http"]["host"], cfg["http"]["port"])
 

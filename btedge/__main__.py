@@ -1,11 +1,13 @@
 """Entry point: python3 -m btedge [--config FILE] [--fake]"""
 import argparse
 import logging
+import os
 import signal
 import threading
 
 from . import config
 from .bluez import BluezBackend, FakeBackend
+from .history import History, Tracker
 from .mesh import Mesh
 from .registry import Registry
 from .web import Panel
@@ -34,14 +36,19 @@ def main(argv=None):
                         node_ttl=cfg["mesh"]["node_ttl"], max_hops=cfg["mesh"]["max_hops"])
     scanner = cfg["scanner"]
     if scanner["backend"] == "fake":
-        backend = FakeBackend(registry)
+        backend = FakeBackend(registry, room=scanner["fake_room"], rooms=scanner["fake_rooms"])
     else:
         backend = BluezBackend(registry, node["id"], adapter=scanner["adapter"],
                                advertise=scanner["advertise"], cache_ttl=scanner["cache_ttl"],
                                rescan_interval=scanner["rescan_interval"])
     mesh = Mesh(registry, cfg["mesh"])
-    panel = Panel(registry, mesh, backend, cfg["http"]["host"], cfg["http"]["port"])
+    hist = cfg["history"]
+    history = History(os.path.join(cfg["state_dir"], "btedge.db"), retention_days=hist["retention_days"])
+    tracker = Tracker(registry, history, margin=hist["room_margin"], flush_interval=hist["flush_interval"])
+    panel = Panel(registry, mesh, backend, cfg["http"]["host"], cfg["http"]["port"],
+                  history=history, tracker=tracker)
 
+    tracker.start()
     backend.start()
     mesh.start()
     panel.start()
@@ -53,6 +60,7 @@ def main(argv=None):
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     stop.wait()
     mesh.stop()
+    tracker.stop()
     panel.stop()
 
 

@@ -4,6 +4,9 @@ Every node is the only authority on its own observations. A node's state is
 versioned by a sequence number that only the owner increments; other nodes keep
 the newest copy and forward it. Ages are relative (seconds since seen) so the
 mesh never depends on synchronised clocks.
+
+Device labels set by users travel with the owner's state and are resolved
+last-writer-wins on their (wall clock) timestamp.
 """
 import threading
 import time
@@ -12,6 +15,15 @@ DEVICE_FIELDS = (
     "name", "rssi", "connected", "paired", "address_type", "icon",
     "tx_power", "manufacturer", "uuids", "btedge_node",
 )
+
+
+def _clean_labels(labels):
+    out = {}
+    if isinstance(labels, dict):
+        for address, value in labels.items():
+            if isinstance(value, list) and len(value) == 2 and isinstance(value[1], (int, float)):
+                out[str(address)[:64]] = [str(value[0] or "")[:64], float(value[1])]
+    return out
 
 
 def _clean_device(dev):
@@ -33,6 +45,7 @@ class Registry:
         self._local = {}
         self._remote = {}
         self._links = {}
+        self._labels = {}
         self._seq = 0
 
     # -- local observations -------------------------------------------------
@@ -45,6 +58,17 @@ class Registry:
                 if fields.get(key) is not None:
                     dev[key] = fields[key]
             dev["_seen"] = now
+
+    def set_label(self, address, label, ts=None):
+        with self._lock:
+            self._labels[address] = [(label or "").strip()[:64], ts if ts is not None else time.time()]
+
+    def load_labels(self, labels):
+        with self._lock:
+            for address, (label, ts) in labels.items():
+                current = self._labels.get(address)
+                if current is None or ts > current[1]:
+                    self._labels[address] = [label, ts]
 
     def _prune(self, now):
         stale = [a for a, d in self._local.items()
@@ -69,6 +93,7 @@ class Registry:
         return {
             "id": self.node["id"], "name": self.node["name"], "http": self.node.get("http"),
             "seq": self._seq, "age": 0.0, "hops": 0, "devices": devices,
+            "labels": {a: list(v) for a, v in self._labels.items()},
         }
 
     def _remote_states(self, now):
@@ -78,6 +103,7 @@ class Registry:
                 "id": state["id"], "name": state["name"], "http": state["http"],
                 "seq": state["seq"], "age": round(state["age"] + elapsed, 1), "hops": state["hops"],
                 "devices": [dict(d, age=round(d["age"] + elapsed, 1)) for d in state["devices"]],
+                "labels": state["labels"],
             }
 
     # -- mesh exchange ------------------------------------------------------
@@ -118,6 +144,7 @@ class Registry:
                     "id": node_id, "name": str(state.get("name") or node_id)[:64],
                     "http": http if isinstance(http, int) else None,
                     "seq": seq, "age": age, "hops": hops, "devices": devices, "_received": now,
+                    "labels": _clean_labels(state.get("labels")),
                 }
                 accepted += 1
         return accepted
@@ -132,6 +159,12 @@ class Registry:
             states = [local] + list(self._remote_states(now))
             links = {n: {"via": l["via"], "addr": l["addr"], "age": round(now - l["_seen"], 1)}
                      for n, l in self._links.items()}
+
+        labels = {}
+        for state in states:
+            for address, (label, ts) in state.get("labels", {}).items():
+                if address not in labels or ts > labels[address][1]:
+                    labels[address] = [label, ts]
 
         known = {s["id"] for s in states}
         beacons = {d["btedge_node"]: d for d in local["devices"] if d.get("btedge_node")}
@@ -162,6 +195,7 @@ class Registry:
             agg["rssi"] = agg["seen_by"][0]["rssi"]
             agg["age"] = min(s["age"] for s in agg["seen_by"])
             agg["local"] = any(s["node"] == self.node["id"] for s in agg["seen_by"])
+            agg["label"] = (labels[agg["address"]][0] or None) if agg["address"] in labels else None
         ordered = sorted(devices.values(),
                          key=lambda d: (d["age"] > 15, d["rssi"] is None, -(d["rssi"] or 0)))
-        return {"node": dict(self.node), "nodes": nodes, "devices": ordered}
+        return {"node": dict(self.node), "nodes": nodes, "devices": ordered, "labels": labels}

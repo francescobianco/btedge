@@ -24,6 +24,13 @@ DEFAULTS = {
         "cache_ttl": 300,     # seconds before unpaired devices are dropped from BlueZ
         "rescan_interval": 20,  # seconds per discovery session; must stay well below device_ttl
         "advertise": True,    # broadcast a BLE beacon so other nodes see us over the air
+        "fake_room": 0,       # fake backend: which simulated room this node is
+        "fake_rooms": 1,      # fake backend: how many simulated rooms devices move across
+    },
+    "history": {
+        "retention_days": 30,
+        "room_margin": 6,     # dB a new room must beat the current one by before a device moves
+        "flush_interval": 30, # seconds between batched writes when nothing moves
     },
     "mesh": {
         "key": "",            # shared secret; nodes with different keys ignore each other

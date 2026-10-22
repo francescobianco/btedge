@@ -264,36 +264,59 @@ def _make_advertisement(dbus, bus, payload, backend):
 
 
 class FakeBackend:
-    """Simulated neighbourhood: devices drift in signal strength, come and go."""
+    """Simulated neighbourhood shared by every fake node of a test mesh.
+
+    Rooms 0..rooms-1 sit on a ring. Devices are derived from a fixed seed, so all
+    fake nodes agree on them; roaming devices walk around the ring on a clock-based
+    schedule, the others stay home. Each node reports the devices near its room,
+    with RSSI falling off with distance, so devices visibly move between nodes.
+    """
 
     NAMES = ["iPhone", "Galaxy S23", "Mi Band 7", "JBL Flip 5", "AirPods Pro", None, None,
              "Tile", "Fitbit Charge", "LE-Bose QC", "ESP32-sensor", None]
     MAKERS = [0x004C, 0x0075, 0x038F, 0x0057, 0x004C, 0x0006, None, 0x00C7, 0x0224, 0x009E, 0x02E5, None]
+    ROAMING = {0, 1, 2, 4, 7, 9}
 
-    def __init__(self, registry, seed=None):
+    def __init__(self, registry, room=0, rooms=1, seed="btedge-fake"):
         self.registry = registry
-        self.status = {"backend": "fake", "state": "scanning", "adapter": "simulated",
+        self.room = room
+        self.rooms = max(1, rooms)
+        self.status = {"backend": "fake", "state": "scanning", "adapter": "simulated room %d/%d" % (room, self.rooms),
                        "advertising": False, "error": None}
-        self._rand = random.Random(seed)
+        rand = random.Random(seed)
+        self._noise = random.Random()
         self._devices = []
         for i, name in enumerate(self.NAMES):
-            address = ":".join("%02X" % self._rand.randrange(256) for _ in range(6))
-            self._devices.append({"address": address, "name": name, "maker": self.MAKERS[i],
-                                  "rssi": self._rand.randint(-95, -40), "present": True})
+            self._devices.append({
+                "address": ":".join("%02X" % rand.randrange(256) for _ in range(6)),
+                "name": name, "maker": self.MAKERS[i], "home": i % self.rooms,
+                "period": rand.uniform(240, 900), "phase": rand.random(),
+                "roaming": i in self.ROAMING,
+            })
 
     def start(self):
         threading.Thread(target=self._run, name="fake-bt", daemon=True).start()
 
+    def _distance(self, dev, now):
+        if dev["roaming"] and self.rooms > 1:
+            # Dwell in each room for most of the cycle, then walk to the next one.
+            t = ((now / dev["period"]) + dev["phase"]) % 1 * self.rooms
+            step, frac = int(t), t % 1
+            position = step + max(0.0, (frac - 0.7) / 0.3)
+        else:
+            position = dev["home"]
+        delta = abs(position - self.room) % self.rooms
+        return min(delta, self.rooms - delta)
+
     def _run(self):
         while True:
+            now = time.time()
             for dev in self._devices:
-                if self._rand.random() < 0.03:
-                    dev["present"] = not dev["present"]
-                if not dev["present"]:
+                distance = self._distance(dev, now)
+                if distance > 1.2:
                     continue
-                dev["rssi"] = max(-100, min(-30, dev["rssi"] + self._rand.randint(-4, 4)))
                 self.registry.observe(dev["address"], {
-                    "name": dev["name"], "rssi": dev["rssi"],
+                    "name": dev["name"], "rssi": int(-45 - 30 * distance + self._noise.randint(-3, 3)),
                     "address_type": "random" if dev["name"] is None else "public",
                     "manufacturer": [dev["maker"]] if dev["maker"] is not None else None,
                     "connected": False, "paired": False,

@@ -39,6 +39,27 @@ Scritto in Python 3 con la sola libreria standard più `python3-dbus` / `python3
   diverse si ignorano. I dati sono firmati ma **non cifrati**: via internet usa HTTPS
   (es. dietro un reverse proxy) o una VPN (WireGuard, Tailscale).
 
+## Pannello
+
+- **Mappa** (vista principale): ogni nodo è una *stanza*, trascinabile per disporla come
+  nella realtà; dentro ci sono i dispositivi presenti ora. La stanza tratteggiata
+  **Fuori portata** raccoglie chi è uscito dalla mesh, così entrate e uscite sono frecce
+  come gli spostamenti. Le frecce tra stanze mostrano i flussi del periodo scelto.
+- **Percorso**: clic su un dispositivo → frecce numerate con orari sulla mappa, elenco
+  delle permanenze e un **time-lapse** a corsie (una per stanza) sull'asse del tempo.
+- **Nomi**: si può dare un nome a un dispositivo; viaggia nella mesh e lo vedono tutti.
+- **Dispositivi** (vista secondaria): tabella di nodi e dispositivi con RSSI per nodo.
+
+### Stanze e storia
+
+Ogni nodo calcola, dalla vista della mesh, in quale stanza si trova ogni dispositivo
+(il nodo che lo sente meglio, con un margine di `history.room_margin` dB per non farlo
+rimbalzare) e salva permanenze e spostamenti in SQLite (`<state_dir>/btedge.db`,
+conservati `history.retention_days` giorni). Scrive solo ai cambi di stanza più un flush
+ogni `history.flush_interval` secondi, per non consumare la SD. Poiché tutti i nodi
+ricevono gli stessi dati, ogni pannello racconta la stessa storia (da quando quel nodo è
+attivo).
+
 ## Installazione (Armbian / Debian)
 
 ```sh
@@ -62,7 +83,10 @@ python3 -m btedge --fake --port 4646   # dispositivi simulati, nessun Bluetooth 
 python3 -m unittest discover -s tests
 ```
 
-Due istanze `--fake` sulla stessa LAN (porte diverse) si trovano via multicast.
+Due istanze `--fake` sulla stessa LAN (porte diverse) si trovano via multicast. Per
+simulare dispositivi che si spostano tra stanze, avvia N nodi fake con
+`"scanner": {"backend": "fake", "fake_room": i, "fake_rooms": N}` (i = 0…N-1), usando
+una `mesh.key` e una `mesh.lan.port` diverse da quelle della mesh reale.
 
 ## API
 
@@ -70,13 +94,17 @@ Due istanze `--fake` sulla stessa LAN (porte diverse) si trovano via multicast.
 |---|---|---|
 | GET | `/` | pannello web |
 | GET | `/api/state` | nodi, dispositivi aggregati, stato scanner e mesh |
+| GET | `/api/rooms?window=s` | stanze, dispositivi presenti, flussi e movimenti del periodo |
+| GET | `/api/journey?address=…&window=s` | permanenze e spostamenti di un dispositivo |
+| POST | `/api/label` | `{"address", "label"}`: nome condiviso nella mesh |
+| POST | `/api/layout` | `{"node_id", "x", "y"}`: posizione di una stanza sulla mappa |
 | GET | `/api/health` | `{"ok": true}` |
 | POST | `/api/mesh/sync` | scambio di stato tra nodi (pacchetto binario firmato) |
 
 ## Roadmap
 
 - Trasporto mesh **via Bluetooth** (GATT o advertising esteso) per nodi senza rete IP.
-- **Zone/aree**: assegnare i nodi ad aree e calcolare in quale area si trova un
-  dispositivo (RSSI migliore, trilaterazione).
+- **Zone/aree** composte da più nodi e posizione più fine (trilaterazione).
+- Condividere la storia tra nodi, così un nodo nuovo vede anche il passato.
 - Eventi di ingresso/uscita da un'area, webhook e MQTT.
 - Gestione degli indirizzi BLE casuali (rotazione) tramite fingerprint dei payload.

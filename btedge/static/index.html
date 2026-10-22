@@ -8,20 +8,22 @@
 :root {
   --bg: #f6f7f9; --surface: #ffffff; --line: #e3e6eb; --text: #16191d; --muted: #6a7280;
   --accent: #2f6fdf; --ok: #1f9d55; --warn: #c98a0b; --bad: #d04545; --chip: #eef2f8;
+  --room: #fbfcfd; --flow: #9aa3b2;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0f1216; --surface: #171b21; --line: #262c35; --text: #e6e9ee; --muted: #8b94a3;
     --accent: #6b9cff; --ok: #3fc07a; --warn: #e2a72e; --bad: #f06a6a; --chip: #212833;
+    --room: #1b2027; --flow: #5d6675;
   }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 header { background: var(--surface); border-bottom: 1px solid var(--line); }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
-.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 14px 0; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
+.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding: 12px 0 0; }
 .brand { font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
 .brand small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
 .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
@@ -29,24 +31,77 @@ header { background: var(--surface); border-bottom: 1px solid var(--line); }
   background: var(--chip); font-size: 12px; color: var(--muted); white-space: nowrap; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
-main { padding: 20px 0 40px; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
-.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-.stat b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
-.stat span { color: var(--muted); font-size: 12px; }
-section { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
-.head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-.head h2 { margin: 0; font-size: 15px; }
-.head .tools { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
-input[type=search], select { background: var(--bg); color: var(--text); border: 1px solid var(--line);
+nav { display: flex; gap: 4px; margin-top: 8px; }
+nav button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted);
+  font: inherit; font-weight: 600; padding: 8px 12px; cursor: pointer; }
+nav button.on { color: var(--text); border-bottom-color: var(--accent); }
+main { padding: 16px 0 40px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.toolbar label { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; }
+input[type=search], input[type=text], select { background: var(--surface); color: var(--text); border: 1px solid var(--line);
   border-radius: 7px; padding: 6px 10px; font: inherit; }
-input[type=search] { width: 220px; max-width: 100%; }
+input[type=search] { width: 240px; max-width: 100%; }
+button.btn { background: var(--accent); color: #fff; border: 0; border-radius: 7px; padding: 6px 12px; font: inherit; cursor: pointer; }
+button.ghost { background: var(--chip); color: var(--text); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+section { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+.head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+.head h2 { margin: 0; font-size: 15px; }
+.head .tools { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.hint { color: var(--muted); font-size: 12px; }
+svg { display: block; width: 100%; height: auto; user-select: none; }
+.room rect.box { fill: var(--room); stroke: var(--line); stroke-width: 1.5; }
+.room.self rect.box { stroke: var(--accent); }
+.room.offline rect.box { stroke-dasharray: 6 5; opacity: .7; }
+.room.active rect.box { stroke-width: 2.5; }
+.room.out rect.box { fill: transparent; stroke: var(--muted); stroke-dasharray: 3 5; stroke-width: 1.5; }
+.room.out text.title { fill: var(--muted); }
+.room { cursor: grab; }
+.room text.title { font-weight: 700; font-size: 15px; fill: var(--text); }
+.room text.sub { font-size: 11px; fill: var(--muted); }
+.room text.count { font-size: 12px; font-weight: 600; fill: var(--muted); }
+.dev { cursor: pointer; }
+.dev text { font-size: 12px; fill: var(--text); }
+.dev:hover text { text-decoration: underline; }
+.dev.sel text { font-weight: 700; fill: var(--accent); }
+.dev.sel circle { stroke: var(--accent); stroke-width: 3; }
+.flow { fill: none; stroke: var(--flow); }
+.flow-label { font-size: 11px; font-weight: 700; fill: var(--muted); }
+.flow-bg { fill: var(--surface); }
+.path { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.step circle { fill: var(--accent); }
+.step text { fill: #fff; font-size: 11px; font-weight: 700; }
+.step-time { font-size: 10.5px; fill: var(--accent); font-weight: 600; }
+.lane-label { font-size: 12px; fill: var(--text); font-weight: 600; }
+.lane-line { stroke: var(--line); }
+.axis { font-size: 10.5px; fill: var(--muted); }
+.now-line { stroke: var(--accent); stroke-dasharray: 3 3; }
+.feed { list-style: none; margin: 0; padding: 0; max-height: 560px; overflow-y: auto; }
+.feed li { padding: 9px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.feed li:hover { background: var(--chip); }
+.feed .when { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.feed .who { font-weight: 600; }
+.feed .route { font-size: 13px; }
+.arrow { color: var(--accent); font-weight: 700; padding: 0 4px; }
+.detail { padding: 14px; }
+.detail h3 { margin: 0 0 2px; font-size: 16px; word-break: break-word; }
+.detail .row { display: flex; gap: 8px; margin: 10px 0; }
+.detail .row input { flex: 1; min-width: 0; }
+.journey { list-style: none; margin: 8px 0 0; padding: 0; }
+.journey li { position: relative; padding: 0 0 14px 22px; }
+.journey li::before { content: ""; position: absolute; left: 6px; top: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--c, var(--accent)); }
+.journey li:not(:last-child)::after { content: ""; position: absolute; left: 10px; top: 17px; bottom: 0; width: 1px; background: var(--line); }
+.journey b { display: block; }
+.journey span { color: var(--muted); font-size: 12px; }
 .scroll { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
 tr:last-child td { border-bottom: 0; }
 tr.stale td { opacity: .5; }
+tbody tr.click { cursor: pointer; }
+tbody tr.click:hover td { background: var(--chip); }
 .mono { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .name { font-weight: 600; }
 .name.unknown { font-weight: 400; color: var(--muted); font-style: italic; }
@@ -62,63 +117,390 @@ tr.stale td { opacity: .5; }
 .tag.self { background: var(--accent); color: #fff; }
 .empty { padding: 28px 14px; text-align: center; color: var(--muted); }
 .err { color: var(--bad); font-size: 12px; }
-@media (max-width: 640px) {
-  .hide-sm { display: none; }
-  th, td { padding: 8px 10px; }
-}
+.hidden { display: none !important; }
+@media (max-width: 640px) { .hide-sm { display: none; } th, td { padding: 8px 10px; } }
 </style>
 </head>
 <body>
 <header>
-  <div class="wrap top">
-    <div class="brand">btedge <small id="node">…</small></div>
-    <div class="pills" id="pills"></div>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">btedge <small id="node">…</small></div>
+      <div class="pills" id="pills"></div>
+    </div>
+    <nav>
+      <button data-tab="map" class="on">Mappa</button>
+      <button data-tab="list">Dispositivi</button>
+    </nav>
   </div>
 </header>
+
 <main class="wrap">
-  <div class="stats">
-    <div class="stat"><b id="s-local">–</b><span>dispositivi vicini a questo nodo</span></div>
-    <div class="stat"><b id="s-mesh">–</b><span>dispositivi nella mesh</span></div>
-    <div class="stat"><b id="s-nodes">–</b><span>nodi attivi</span></div>
-    <div class="stat"><b id="s-conn">–</b><span>connessi</span></div>
+  <div id="tab-map">
+    <div class="toolbar">
+      <label>Periodo
+        <select id="window">
+          <option value="900">15 minuti</option>
+          <option value="3600" selected>1 ora</option>
+          <option value="21600">6 ore</option>
+          <option value="86400">24 ore</option>
+          <option value="604800">7 giorni</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="named"> Solo dispositivi con nome</label>
+      <input type="search" id="find" placeholder="Cerca un dispositivo…" list="find-list">
+      <datalist id="find-list"></datalist>
+      <span class="hint">Trascina le stanze per disporle come nella realtà.</span>
+    </div>
+
+    <div class="grid">
+      <section>
+        <div class="head"><h2 id="map-title">Stanze</h2><div class="tools hint" id="map-hint"></div></div>
+        <svg id="map" viewBox="0 0 1000 560" role="img" aria-label="Mappa delle stanze"></svg>
+      </section>
+      <section id="side"></section>
+    </div>
+
+    <section>
+      <div class="head"><h2 id="lapse-title">Time-lapse</h2><div class="tools hint" id="lapse-hint"></div></div>
+      <div class="scroll"><svg id="lapse" viewBox="0 0 1000 200"></svg></div>
+    </section>
   </div>
 
-  <section>
-    <div class="head"><h2>Nodi della mesh</h2></div>
-    <div class="scroll"><table>
-      <thead><tr><th>Nodo</th><th>Collegamento</th><th class="hide-sm">Salti</th><th>Dispositivi</th><th class="hide-sm">Radio BT</th><th>Aggiornato</th></tr></thead>
-      <tbody id="nodes"></tbody>
-    </table></div>
-  </section>
-
-  <section>
-    <div class="head">
-      <h2>Dispositivi Bluetooth</h2>
-      <div class="tools">
-        <select id="scope">
-          <option value="all">Tutta la mesh</option>
-          <option value="local">Solo questo nodo</option>
-        </select>
-        <input type="search" id="filter" placeholder="Filtra nome, indirizzo, nodo…">
+  <div id="tab-list" class="hidden">
+    <section>
+      <div class="head"><h2>Nodi della mesh</h2></div>
+      <div class="scroll"><table>
+        <thead><tr><th>Nodo</th><th>Collegamento</th><th class="hide-sm">Salti</th><th>Dispositivi</th><th class="hide-sm">Radio BT</th><th>Aggiornato</th></tr></thead>
+        <tbody id="nodes"></tbody>
+      </table></div>
+    </section>
+    <section>
+      <div class="head">
+        <h2>Dispositivi Bluetooth</h2>
+        <div class="tools">
+          <select id="scope">
+            <option value="all">Tutta la mesh</option>
+            <option value="local">Solo questo nodo</option>
+          </select>
+          <input type="search" id="filter" placeholder="Filtra nome, indirizzo, nodo…">
+        </div>
       </div>
-    </div>
-    <div class="scroll"><table>
-      <thead><tr><th>Dispositivo</th><th>Segnale migliore</th><th>Visto da</th><th>Ultimo avvistamento</th></tr></thead>
-      <tbody id="devices"></tbody>
-    </table></div>
-  </section>
+      <div class="scroll"><table>
+        <thead><tr><th>Dispositivo</th><th>Segnale migliore</th><th>Visto da</th><th>Ultimo avvistamento</th></tr></thead>
+        <tbody id="devices"></tbody>
+      </table></div>
+    </section>
+  </div>
   <p class="meta" id="footer"></p>
 </main>
+
 <script>
 const MAKERS = {0x004C:"Apple",0x0006:"Microsoft",0x0075:"Samsung",0x00E0:"Google",0x0087:"Garmin",
   0x0157:"Huami",0x038F:"Xiaomi",0x0059:"Nordic",0x02E5:"Espressif",0x0171:"Amazon",0x0057:"Harman",
   0x00C7:"Tile",0x0224:"Fitbit",0x009E:"Bose",0x01DA:"Logitech",0x000F:"Broadcom",0x0131:"Cypress",
   0x00D2:"Dialog",0x0310:"SGL Italia",0x027D:"Huawei",0x0499:"Ruuvi",0x0822:"Adafruit"};
+const ROOM_COLORS = ["#2f6fdf", "#1f9d55", "#c98a0b", "#9b51e0", "#d04545", "#0e9aa7", "#e0569b", "#6b7a8f"];
+const W = 1000, H = 560, RW = 236, RH = 176;
+const VIA = {lan: "LAN multicast", ip: "IP / internet"};
+const OUT = "_out", OUT_COLOR = "#8b94a3";
+const roomOf = id => id || OUT;  // arrivals come from, departures go to, the outside room
+
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const cut = (s, n) => s.length > n ? s.slice(0, n - 1) + "…" : s;
 const ago = s => s == null ? "–" : s < 5 ? "ora" : s < 60 ? Math.round(s) + " s fa" : s < 3600 ? Math.round(s / 60) + " min fa" : Math.round(s / 3600) + " h fa";
-const VIA = {lan: "LAN multicast", ip: "IP / internet"};
-let last = null;
+const dur = s => s < 60 ? Math.max(1, Math.round(s)) + " s" : s < 3600 ? Math.round(s / 60) + " min" :
+  Math.floor(s / 3600) + " h " + Math.round((s % 3600) / 60) + " min";
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("btedge." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("btedge." + k, JSON.stringify(v)); } catch {} },
+};
+
+const ui = {
+  tab: store.get("tab", "map"), window: store.get("window", 3600), named: store.get("named", false),
+  selected: decodeURIComponent((location.hash.match(/device=([^&]+)/) || [])[1] || "") || null,
+  live: null, rooms: null, journey: null, drag: null, pos: {},
+};
+
+function clock(ts) {
+  const d = new Date(ts * 1000);
+  const t = d.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+  return ui.window > 86400 ? d.toLocaleDateString([], {day: "2-digit", month: "2-digit"}) + " " + t : t;
+}
+function makerOf(list) {
+  return list && list.length ? list.map(m => MAKERS[m] || "0x" + m.toString(16).padStart(4, "0")).join(", ") : "";
+}
+function devName(d) {
+  return d.label || d.name || (makerOf(d.manufacturer) ? makerOf(d.manufacturer) + " " : "") + "··" + d.address.slice(-5);
+}
+function isNamed(d) { return !!(d.label || d.name); }
+function devColor(address) {
+  let h = 0;
+  for (const c of address) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return `hsl(${h % 360} 65% 50%)`;
+}
+
+async function get(url) {
+  const res = await fetch(url, {cache: "no-store"});
+  if (!res.ok) throw new Error(res.status + " " + url);
+  return res.json();
+}
+async function post(url, body) {
+  const res = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  if (!res.ok) throw new Error((await res.json()).error || res.status);
+}
+
+// ---------------------------------------------------------------- rooms map
+
+function roomOrder(rooms) {
+  return [...rooms].sort((a, b) => (!!a.virtual - !!b.virtual) || (b.self - a.self) ||
+    a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
+function roomColor(rooms) {
+  const map = {};
+  roomOrder(rooms).forEach((r, i) => map[r.id] = r.virtual ? OUT_COLOR : ROOM_COLORS[i % ROOM_COLORS.length]);
+  return map;
+}
+function clampPos(p) {
+  return {x: Math.min(W - RW / 2 - 8, Math.max(RW / 2 + 8, p.x)), y: Math.min(H - RH / 2 - 8, Math.max(RH / 2 + 8, p.y))};
+}
+function layoutRooms(rooms, saved) {
+  const order = roomOrder(rooms), n = order.length, pos = {};
+  order.forEach((r, i) => {
+    if (ui.drag && ui.drag.id === r.id) pos[r.id] = ui.pos[r.id];
+    else if (saved[r.id]) pos[r.id] = clampPos(saved[r.id]);
+    else if (n === 1) pos[r.id] = {x: W / 2, y: H / 2};
+    else {
+      const a = Math.PI + 2 * Math.PI * i / n;
+      pos[r.id] = clampPos({x: W / 2 + Math.cos(a) * 330, y: H / 2 + Math.sin(a) * 170});
+    }
+  });
+  return pos;
+}
+function edge(c, toward, pad) {
+  const dx = toward.x - c.x, dy = toward.y - c.y;
+  const s = Math.min((RW / 2 + pad) / Math.abs(dx || 1e-9), (RH / 2 + pad) / Math.abs(dy || 1e-9));
+  return {x: c.x + dx * s, y: c.y + dy * s};
+}
+function curve(a, b, bend, shift) {
+  const c1 = edge(a, b, 6), c2 = edge(b, a, 10);
+  const dx = c2.x - c1.x, dy = c2.y - c1.y, len = Math.hypot(dx, dy) || 1;
+  const px = -dy / len, py = dx / len;
+  const p1 = {x: c1.x + px * shift, y: c1.y + py * shift}, p2 = {x: c2.x + px * shift, y: c2.y + py * shift};
+  const c = {x: (p1.x + p2.x) / 2 + px * bend, y: (p1.y + p2.y) / 2 + py * bend};
+  return {d: `M${p1.x.toFixed(1)},${p1.y.toFixed(1)} Q${c.x.toFixed(1)},${c.y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`,
+          mid: {x: (p1.x + 2 * c.x + p2.x) / 4, y: (p1.y + 2 * c.y + p2.y) / 4}};
+}
+
+function roomContent(r, p) {
+  const x0 = p.x - RW / 2, y0 = p.y - RH / 2;
+  const devs = r.devices.filter(d => !ui.named || isNamed(d));
+  const named = devs.filter(isNamed), anon = devs.filter(d => !isNamed(d));
+  let out = "", row = 0;
+  named.slice(0, 8).forEach((d, i) => {
+    const x = x0 + 14 + (i % 2) * 112, y = y0 + 64 + Math.floor(i / 2) * 20;
+    row = Math.floor(i / 2) + 1;
+    out += `<g class="dev${d.address === ui.selected ? " sel" : ""}" data-dev="${esc(d.address)}"><title>${esc(devName(d))} · ${esc(d.address)}${d.rssi != null ? " · " + d.rssi + " dBm" : ""}</title>
+      <circle cx="${x + 5}" cy="${y - 4}" r="5" fill="${devColor(d.address)}"/><text x="${x + 15}" y="${y}">${esc(cut(devName(d), 13))}</text></g>`;
+  });
+  const extra = named.length > 8 ? named.slice(8) : [];
+  const dots = extra.concat(anon), maxDots = 30;
+  dots.slice(0, maxDots).forEach((d, i) => {
+    const x = x0 + 19 + (i % 15) * 14, y = y0 + 68 + row * 20 + Math.floor(i / 15) * 14;
+    out += `<g class="dev${d.address === ui.selected ? " sel" : ""}" data-dev="${esc(d.address)}"><title>${esc(devName(d))} · ${esc(d.address)}${d.rssi != null ? " · " + d.rssi + " dBm" : ""}</title>
+      <circle cx="${x}" cy="${y - 4}" r="4.5" fill="${devColor(d.address)}" opacity=".75"/></g>`;
+  });
+  if (dots.length > maxDots) out += `<text class="sub" x="${x0 + 14}" y="${y0 + RH - 12}">+${dots.length - maxDots} altri</text>`;
+  if (!devs.length) out += `<text class="sub" x="${p.x}" y="${p.y + 16}" text-anchor="middle">${r.virtual ? "nessuno è uscito" : "nessun dispositivo"}</text>`;
+  return out;
+}
+
+function renderMap() {
+  const data = ui.rooms;
+  if (!data) return;
+  const pos = layoutRooms(data.rooms, data.layout);
+  ui.pos = pos;
+  const colors = roomColor(data.rooms);
+  const sel = ui.selected, j = ui.journey;
+  let defs = `<defs>
+    <marker id="a-flow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--flow)"/></marker>
+    <marker id="a-path" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker>
+  </defs>`;
+  let arrows = "", labels = "";
+
+  if (sel && j) {
+    // The selected device's own journey: numbered arrows in chronological order.
+    const steps = j.moves.filter(m => pos[roomOf(m.from_node)] && pos[roomOf(m.to_node)]).reverse();
+    const seen = {};
+    steps.forEach((m, i) => {
+      const a = roomOf(m.from_node), b = roomOf(m.to_node), key = a + ">" + b;
+      const k = seen[key] = (seen[key] || 0) + 1;
+      const c = curve(pos[a], pos[b], 26 + 24 * (k - 1), 6);
+      arrows += `<path class="path" d="${c.d}" marker-end="url(#a-path)"><title>${clock(m.ts)}</title></path>`;
+      labels += `<g class="step"><circle cx="${c.mid.x}" cy="${c.mid.y}" r="10"/><text x="${c.mid.x}" y="${c.mid.y + 4}" text-anchor="middle">${i + 1}</text></g>
+        <text class="step-time" x="${c.mid.x + 14}" y="${c.mid.y + 4}">${clock(m.ts)}</text>`;
+    });
+    $("map-hint").textContent = steps.length ? `${steps.length} spostamenti di ${devName(j.device)}` : `${devName(j.device)}: nessuno spostamento nel periodo`;
+  } else {
+    // Aggregate flows of the period: thicker arrows mean more movements.
+    let total = 0;
+    for (const f of data.flows) {
+      const count = ui.named ? f.named : f.count;
+      if (!count || !pos[f.from_node] || !pos[f.to_node]) continue;
+      total += count;
+      const c = curve(pos[f.from_node], pos[f.to_node], 30, 7);
+      const w = Math.min(7, 1.2 + Math.log2(count + 1) * 1.3);
+      arrows += `<path class="flow" d="${c.d}" stroke-width="${w.toFixed(1)}" marker-end="url(#a-flow)"/>`;
+      labels += `<circle class="flow-bg" cx="${c.mid.x}" cy="${c.mid.y}" r="11"/><text class="flow-label" x="${c.mid.x}" y="${c.mid.y + 4}" text-anchor="middle">${count}</text>`;
+    }
+    $("map-hint").textContent = total ? `${total} spostamenti nel periodo · clic su un dispositivo per il suo percorso` : "Nessuno spostamento nel periodo";
+  }
+
+  const rooms = roomOrder(data.rooms).map(r => {
+    const p = pos[r.id];
+    const n = r.devices.filter(d => !ui.named || isNamed(d)).length;
+    const active = j && (j.device.room || OUT) === r.id;
+    const sub = r.virtual ? "usciti dalla mesh nel periodo" : r.self ? "questo nodo" : r.online ? "online" :
+      "offline · " + (r.last_seen ? ago(data.now - r.last_seen) : "");
+    return `<g class="room${r.self ? " self" : ""}${r.virtual ? " out" : ""}${r.online ? "" : " offline"}${active ? " active" : ""}" data-room="${esc(r.id)}">
+      <rect class="box" x="${p.x - RW / 2}" y="${p.y - RH / 2}" width="${RW}" height="${RH}" rx="14"/>
+      <rect x="${p.x - RW / 2}" y="${p.y - RH / 2}" width="6" height="${RH}" rx="3" fill="${colors[r.id]}"/>
+      <text class="title" x="${p.x - RW / 2 + 16}" y="${p.y - RH / 2 + 24}">${esc(cut(r.name, 20))}</text>
+      <text class="sub" x="${p.x - RW / 2 + 16}" y="${p.y - RH / 2 + 40}">${esc(sub)}</text>
+      <text class="count" x="${p.x + RW / 2 - 14}" y="${p.y - RH / 2 + 24}" text-anchor="end">${n}</text>
+      ${roomContent(r, p)}</g>`;
+  }).join("");
+  $("map").innerHTML = defs + rooms + arrows + labels;
+  $("map-title").textContent = `Stanze (${data.rooms.length})`;
+}
+
+// ---------------------------------------------------------------- side panel
+
+function renderFeed() {
+  const data = ui.rooms;
+  const names = Object.fromEntries(data.rooms.map(r => [r.id, r.name]));
+  const items = data.moves.filter(m => (m.from_node && m.to_node) || isNamed(m)).filter(m => !ui.named || isNamed(m));
+  const li = items.slice(0, 80).map(m => {
+    const a = roomOf(m.from_node), b = roomOf(m.to_node);
+    const route = `${esc(names[a] || a)}<span class="arrow">→</span>${esc(names[b] || b)}`;
+    return `<li data-dev="${esc(m.address)}"><div class="when">${clock(m.ts)} · ${ago(data.now - m.ts)}</div>
+      <div class="who" style="color:${devColor(m.address)}">${esc(devName(m))}</div><div class="route">${route}</div></li>`;
+  }).join("");
+  $("side").innerHTML = `<div class="head"><h2>Movimenti</h2><div class="tools hint">${items.length}</div></div>` +
+    (li ? `<ul class="feed">${li}</ul>` : `<div class="empty">Nessun movimento nel periodo.<br>Quando un dispositivo passa da un nodo all'altro compare qui.</div>`);
+}
+
+function renderDetail() {
+  const j = ui.journey;
+  if (!j) { $("side").innerHTML = `<div class="empty">Caricamento…</div>`; return; }
+  const d = j.device;
+  const colors = roomColor(ui.rooms.rooms);
+  const names = Object.fromEntries(ui.rooms.rooms.map(r => [r.id, r.name]));
+  const here = d.room ? `In <b>${esc(names[d.room] || d.room)}</b>` : `Fuori portata${d.last_seen ? " · ultimo avvistamento " + ago(j.now - d.last_seen) : ""}`;
+  const stays = withOutside(j).map(s => `<li style="--c:${colors[s.node_id] || "var(--muted)"}"><b>${esc(s.name)}</b>
+      <span>${clock(s.start)} – ${s.current ? "ora" : clock(s.end)} · ${dur(Math.max(0, s.end - s.start))}${s.rssi != null ? " · max " + s.rssi + " dBm" : ""}</span></li>`).reverse().join("");
+  const editing = document.activeElement && document.activeElement.id === "label-input";
+  const value = editing ? document.activeElement.value : (d.label || "");
+  $("side").innerHTML = `<div class="head"><h2>Dispositivo</h2><div class="tools"><button class="btn ghost" id="close">Chiudi</button></div></div>
+    <div class="detail">
+      <h3 style="color:${devColor(d.address)}">${esc(devName(d))}</h3>
+      <div class="mono">${esc(d.address)}</div>
+      <div class="meta">${esc([d.name && d.label ? d.name : "", makerOf(d.manufacturer)].filter(Boolean).join(" · "))}</div>
+      <p>${here}</p>
+      <div class="row"><input type="text" id="label-input" placeholder="Dai un nome (es. Telefono di Francesco)" value="${esc(value)}" maxlength="64">
+        <button class="btn" id="label-save">Salva</button></div>
+      <div class="meta">Il nome viene condiviso con tutti i nodi della mesh.</div>
+      <h2 style="font-size:14px;margin:18px 0 6px">Percorso nel periodo</h2>
+      ${stays ? `<ul class="journey">${stays}</ul>` : `<div class="meta">Nessuna presenza registrata nel periodo.</div>`}
+    </div>`;
+  if (editing) { const el = $("label-input"); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  $("close").onclick = () => select(null);
+  $("label-save").onclick = saveLabel;
+  $("label-input").onkeydown = e => { if (e.key === "Enter") saveLabel(); };
+}
+
+// Stays plus the gaps between them, spent out of range of every node.
+function withOutside(j) {
+  const out = [], gap = 60;
+  j.stays.forEach((s, i) => {
+    const prev = j.stays[i - 1];
+    if (prev && s.start - prev.end > gap)
+      out.push({node_id: OUT, name: "Fuori portata", start: prev.end, end: s.start});
+    out.push(Object.assign({}, s, {current: s.open && j.device.room === s.node_id}));
+  });
+  const last = j.stays[j.stays.length - 1];
+  if (last && !j.device.room && j.now - last.end > gap)
+    out.push({node_id: OUT, name: "Fuori portata", start: last.end, end: j.now, current: true});
+  return out;
+}
+
+async function saveLabel() {
+  try {
+    await post("api/label", {address: ui.selected, label: $("label-input").value});
+    $("label-input").blur();
+    refresh(true);
+  } catch (e) { alertFooter("Salvataggio non riuscito: " + e.message); }
+}
+
+// ---------------------------------------------------------------- time-lapse
+
+function renderLapse() {
+  const data = ui.rooms;
+  const rooms = roomOrder(data.rooms), colors = roomColor(data.rooms);
+  const L = 150, R = 16, top = 22, lane = 38;
+  const h = top + rooms.length * lane + 30;
+  const t1 = data.now, t0 = t1 - ui.window;
+  const x = t => L + (Math.max(t0, Math.min(t1, t)) - t0) / (t1 - t0) * (W - L - R);
+  const y = {};
+  rooms.forEach((r, i) => y[r.id] = top + i * lane + lane / 2);
+  let out = `<defs><marker id="a-lapse" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--text)"/></marker></defs>`;
+  rooms.forEach(r => {
+    out += `<line class="lane-line" x1="${L}" x2="${W - R}" y1="${y[r.id]}" y2="${y[r.id]}"/>
+      <rect x="8" y="${y[r.id] - 7}" width="6" height="14" rx="2" fill="${colors[r.id]}"/>
+      <text class="lane-label" x="20" y="${y[r.id] + 4}">${esc(cut(r.name, 16))}</text>`;
+  });
+  for (let i = 0; i <= 6; i++) {
+    const t = t0 + (t1 - t0) * i / 6, xx = x(t);
+    out += `<line class="lane-line" x1="${xx}" x2="${xx}" y1="${top - 6}" y2="${h - 24}" opacity=".5"/>
+      <text class="axis" x="${xx}" y="${h - 8}" text-anchor="${i === 0 ? "start" : i === 6 ? "end" : "middle"}">${clock(t)}</text>`;
+  }
+  out += `<line class="now-line" x1="${x(t1)}" x2="${x(t1)}" y1="${top - 8}" y2="${h - 24}"/>`;
+
+  const j = ui.selected && ui.journey;
+  if (j) {
+    for (const s of withOutside(j)) {
+      if (y[s.node_id] == null) continue;
+      const x1 = x(s.start), x2 = Math.max(x1 + 3, x(s.end));
+      out += `<rect x="${x1}" y="${y[s.node_id] - 8}" width="${x2 - x1}" height="16" rx="4" fill="${colors[s.node_id]}" opacity=".85">
+        <title>${esc(s.name)} · ${clock(s.start)}–${clock(s.end)} · ${dur(s.end - s.start)}</title></rect>`;
+    }
+    const steps = j.moves.filter(m => y[roomOf(m.from_node)] != null && y[roomOf(m.to_node)] != null).reverse();
+    steps.forEach((m, i) => {
+      const xx = x(m.ts), ya = y[roomOf(m.from_node)], yb = y[roomOf(m.to_node)], dir = yb > ya ? 1 : -1;
+      out += `<path d="M${xx - 8},${ya + dir * 9} C${xx - 2},${ya + dir * 20} ${xx - 2},${yb - dir * 20} ${xx},${yb - dir * 10}" fill="none" stroke="var(--text)" stroke-width="1.6" marker-end="url(#a-lapse)">
+        <title>${i + 1}. ${clock(m.ts)}</title></path>`;
+    });
+    $("lapse-title").textContent = `Time-lapse · ${devName(j.device)}`;
+    $("lapse-hint").textContent = "barre = permanenza in una stanza · frecce = spostamenti";
+  } else {
+    const moves = data.moves.filter(m => (m.from_node && m.to_node) || isNamed(m))
+      .filter(m => (!ui.named || isNamed(m)) && y[roomOf(m.from_node)] != null && y[roomOf(m.to_node)] != null);
+    for (const m of moves) {
+      const xx = x(m.ts), ya = y[roomOf(m.from_node)], yb = y[roomOf(m.to_node)], dir = yb > ya ? 1 : -1;
+      out += `<path d="M${xx},${ya + dir * 4} L${xx},${yb - dir * 6}" stroke="${devColor(m.address)}" stroke-width="2" marker-end="url(#a-lapse)" data-dev="${esc(m.address)}" style="cursor:pointer">
+        <title>${esc(devName(m))} · ${clock(m.ts)}</title></path>`;
+    }
+    $("lapse-title").textContent = "Time-lapse della mesh";
+    $("lapse-hint").textContent = moves.length ? "ogni freccia è uno spostamento tra stanze · clic per seguirlo" : "nessuno spostamento nel periodo";
+  }
+  const svg = $("lapse");
+  svg.setAttribute("viewBox", `0 0 ${W} ${h}`);
+  svg.style.minWidth = "640px";
+  svg.innerHTML = out;
+}
+
+// ---------------------------------------------------------------- list tab
 
 function signal(rssi) {
   if (rssi == null) return '<span class="meta">–</span>';
@@ -126,14 +508,10 @@ function signal(rssi) {
   const color = rssi > -60 ? "var(--ok)" : rssi > -80 ? "var(--warn)" : "var(--bad)";
   return `<div class="sig"><div class="bar"><i style="width:${pct}%;background:${color}"></i></div><span class="num">${rssi} dBm</span></div>`;
 }
-
-function pill(label, state) {
-  return `<span class="pill"><span class="dot ${state}"></span>${esc(label)}</span>`;
-}
+function pill(label, state) { return `<span class="pill"><span class="dot ${state}"></span>${esc(label)}</span>`; }
 
 function renderPills(st) {
-  const p = [];
-  const sc = st.scanner || {};
+  const p = [], sc = st.scanner || {};
   const scState = sc.state === "scanning" ? "ok" : sc.state === "starting" ? "warn" : "bad";
   p.push(pill(sc.state === "scanning" ? `Scansione attiva (${sc.adapter})` :
     sc.state === "no_adapter" ? "Nessun adattatore BT" : sc.state === "starting" ? "Avvio…" : "Errore Bluetooth", scState));
@@ -159,7 +537,8 @@ function renderNodes(st) {
 
 function describe(d) {
   const bits = [];
-  if (d.manufacturer) bits.push(d.manufacturer.map(m => MAKERS[m] || "0x" + m.toString(16).padStart(4, "0")).join(", "));
+  if (d.label && d.name) bits.push(d.name);
+  if (d.manufacturer) bits.push(makerOf(d.manufacturer));
   if (d.icon) bits.push(d.icon);
   if (d.address_type) bits.push(d.address_type === "random" ? "indirizzo casuale" : "indirizzo pubblico");
   if (d.paired) bits.push("associato");
@@ -168,14 +547,11 @@ function describe(d) {
 }
 
 function renderDevices(st) {
-  const q = $("filter").value.trim().toLowerCase();
-  const scope = $("scope").value;
-  const me = st.node.id;
+  const q = $("filter").value.trim().toLowerCase(), scope = $("scope").value, me = st.node.id;
   const rows = st.devices.filter(d => {
     if (scope === "local" && !d.local) return false;
     if (!q) return true;
-    const hay = [d.name, d.address, describe(d), ...d.seen_by.map(s => s.name)].join(" ").toLowerCase();
-    return hay.includes(q);
+    return [d.label, d.name, d.address, describe(d), ...d.seen_by.map(s => s.name)].join(" ").toLowerCase().includes(q);
   });
   if (!rows.length) {
     $("devices").innerHTML = `<tr><td colspan="4" class="empty">${st.devices.length ? "Nessun dispositivo corrisponde al filtro." : "Nessun dispositivo rilevato per ora."}</td></tr>`;
@@ -183,41 +559,128 @@ function renderDevices(st) {
   }
   $("devices").innerHTML = rows.map(d => {
     const chips = d.seen_by.map(s => `<span class="chip${s.node === me ? " me" : ""}" title="${esc(s.node)} · ${ago(s.age)}">${esc(s.name)}${s.rssi != null ? " " + s.rssi : ""}${s.connected ? " · connesso" : ""}</span>`).join("");
-    return `<tr class="${d.age > 30 ? "stale" : ""}"><td>
-        <div class="name${d.name ? "" : " unknown"}">${esc(d.name || "senza nome")}</div>
+    return `<tr class="click ${d.age > 30 ? "stale" : ""}" data-dev="${esc(d.address)}"><td>
+        <div class="name${isNamed(d) ? "" : " unknown"}">${esc(d.label || d.name || "senza nome")}</div>
         <div class="mono">${esc(d.address)}</div><div class="meta">${esc(describe(d))}</div></td>
       <td>${signal(d.rssi)}</td><td><div class="chips">${chips}</div></td><td class="num">${ago(d.age)}</td></tr>`;
   }).join("");
 }
 
-function render(st) {
-  last = st;
-  $("node").textContent = `${st.node.name} · ${st.node.id}`;
-  document.title = `btedge · ${st.node.name}`;
-  renderPills(st);
-  renderNodes(st);
-  renderDevices(st);
-  $("s-local").textContent = st.devices.filter(d => d.local).length;
-  $("s-mesh").textContent = st.devices.length;
-  $("s-nodes").textContent = st.nodes.length;
-  $("s-conn").textContent = st.devices.filter(d => d.seen_by.some(s => s.connected)).length;
-  const err = st.scanner && (st.scanner.error || st.scanner.beacon_error);
-  $("footer").innerHTML = `btedge ${esc(st.version)} · aggiornato ${new Date(st.time * 1000).toLocaleTimeString()}` +
-    (err ? ` · <span class="err">${esc(err)}</span>` : "");
+// ---------------------------------------------------------------- glue
+
+function renderFind() {
+  const seen = new Map();
+  for (const d of ui.live ? ui.live.devices : []) seen.set(d.address, devName(d));
+  for (const m of ui.rooms ? ui.rooms.moves : []) if (!seen.has(m.address)) seen.set(m.address, devName(m));
+  $("find-list").innerHTML = [...seen].map(([a, n]) => `<option value="${esc(n)} — ${esc(a)}">`).join("");
 }
 
-async function poll() {
-  try {
-    const res = await fetch("api/state", {cache: "no-store"});
-    render(await res.json());
-  } catch (e) {
-    $("footer").innerHTML = `<span class="err">Nodo non raggiungibile: ${esc(e.message)}</span>`;
+function render() {
+  const st = ui.live;
+  if (st) {
+    $("node").textContent = `${st.node.name} · ${st.node.id}`;
+    document.title = `btedge · ${st.node.name}`;
+    renderPills(st);
+    renderNodes(st);
+    renderDevices(st);
   }
-  setTimeout(poll, 2000);
+  if (ui.rooms && !ui.drag) {
+    renderMap();
+    if (ui.selected) renderDetail(); else renderFeed();
+    renderLapse();
+  }
+  renderFind();
+  if (st) {
+    const err = st.scanner && (st.scanner.error || st.scanner.beacon_error);
+    $("footer").innerHTML = `btedge ${esc(st.version)} · aggiornato ${new Date(st.time * 1000).toLocaleTimeString()}` +
+      (err ? ` · <span class="err">${esc(err)}</span>` : "");
+  }
 }
-$("filter").addEventListener("input", () => last && renderDevices(last));
-$("scope").addEventListener("change", () => last && renderDevices(last));
-poll();
+function alertFooter(msg) { $("footer").innerHTML = `<span class="err">${esc(msg)}</span>`; }
+
+let timer = null;
+async function refresh(now) {
+  clearTimeout(timer);
+  try {
+    const [live, rooms] = await Promise.all([get("api/state"), get(`api/rooms?window=${ui.window}`)]);
+    ui.live = live; ui.rooms = rooms;
+    ui.journey = ui.selected ? await get(`api/journey?address=${encodeURIComponent(ui.selected)}&window=${ui.window}`) : null;
+    render();
+  } catch (e) {
+    alertFooter("Nodo non raggiungibile: " + e.message);
+  }
+  timer = setTimeout(refresh, 3000);
+}
+
+function select(address) {
+  ui.selected = address;
+  ui.journey = null;
+  history.replaceState(null, "", address ? "#device=" + encodeURIComponent(address) : location.pathname);
+  setTab("map");
+  render();
+  refresh(true);
+}
+function setTab(tab) {
+  ui.tab = tab;
+  store.set("tab", tab);
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
+  $("tab-map").classList.toggle("hidden", tab !== "map");
+  $("tab-list").classList.toggle("hidden", tab !== "list");
+}
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-dev]");
+  if (el && !ui.dragMoved) select(el.dataset.dev);
+});
+$("window").value = String(ui.window);
+$("window").onchange = () => { ui.window = +$("window").value; store.set("window", ui.window); refresh(true); };
+$("named").checked = ui.named;
+$("named").onchange = () => { ui.named = $("named").checked; store.set("named", ui.named); render(); };
+$("find").onchange = () => {
+  const m = $("find").value.match(/([0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5})\s*$/);
+  if (m) { select(m[1]); $("find").value = ""; }
+};
+$("filter").oninput = () => ui.live && renderDevices(ui.live);
+$("scope").onchange = () => ui.live && renderDevices(ui.live);
+
+// Drag rooms; positions are saved on this node.
+const map = $("map");
+function svgPoint(e) {
+  const pt = map.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  return pt.matrixTransform(map.getScreenCTM().inverse());
+}
+map.addEventListener("pointerdown", e => {
+  const g = e.target.closest("[data-room]");
+  if (!g) return;
+  const p = svgPoint(e), id = g.dataset.room, c = ui.pos[id];
+  ui.drag = {id, dx: p.x - c.x, dy: p.y - c.y, x0: e.clientX, y0: e.clientY};
+  ui.dragMoved = false;
+});
+map.addEventListener("pointermove", e => {
+  if (!ui.drag) return;
+  if (!ui.dragMoved) {
+    if (Math.hypot(e.clientX - ui.drag.x0, e.clientY - ui.drag.y0) <= 4) return;
+    ui.dragMoved = true;
+    map.setPointerCapture(e.pointerId);
+  }
+  const p = svgPoint(e);
+  ui.pos[ui.drag.id] = clampPos({x: p.x - ui.drag.dx, y: p.y - ui.drag.dy});
+  renderMap();
+});
+map.addEventListener("pointerup", async () => {
+  if (!ui.drag) return;
+  const {id} = ui.drag, p = ui.pos[id];
+  ui.drag = null;
+  if (!ui.dragMoved) return;
+  ui.rooms.layout[id] = p;
+  setTimeout(() => ui.dragMoved = false, 0);  // swallow the click that ends the drag
+  try { await post("api/layout", {node_id: id, x: p.x, y: p.y}); } catch (err) { alertFooter(err.message); }
+});
+
+setTab(ui.tab);
+refresh(true);
 </script>
 </body>
 </html>

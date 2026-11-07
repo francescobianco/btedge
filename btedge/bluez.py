@@ -72,6 +72,14 @@ class BluezBackend:
         self._adv_pending = False
         self.keep_connected = [a.upper() for a in keep_connected or []]
         self._connecting = set()
+        # dbus-glib must be told about threads before any second thread exists: the panel,
+        # mesh and action threads otherwise race the GLib loop inside libdbus and corrupt
+        # the heap. The backend is built in the main thread before anything starts.
+        try:
+            import dbus.mainloop.glib
+            dbus.mainloop.glib.threads_init()
+        except ImportError:
+            pass  # reported when the backend starts
 
     def start(self):
         threading.Thread(target=self._run, name="bluez", daemon=True).start()

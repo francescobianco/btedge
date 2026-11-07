@@ -27,10 +27,15 @@ class Gatt:
 
     def __init__(self, address, adapter="hci0", retries=3):
         import dbus
+        import dbus.mainloop
         self._dbus = dbus
         self.address = address.upper()
         self.retries = retries
-        self.bus = dbus.SystemBus(private=True)
+        # Not attached to the backend's GLib loop: only blocking calls from this thread.
+        self.bus = dbus.SystemBus(private=True, mainloop=dbus.mainloop.NULL_MAIN_LOOP)
+        # libdbus kills the whole process with _exit(1) when a bus connection it owns is
+        # closed while "exit on disconnect" is set (the default): turn it off first.
+        self.bus.set_exit_on_disconnect(False)
         self.path = "/org/bluez/%s/dev_%s" % (adapter, self.address.replace(":", "_"))
 
     def close(self):

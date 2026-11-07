@@ -166,6 +166,10 @@ class Panel:
                 if panel.mesh.receive(self.rfile.read(length), "ip", self.client_address[0]) is None:
                     self._send(403, b"rejected", "text/plain")
                     return
-                self._send(200, panel.mesh.packet(), "application/octet-stream")
+                reply = panel.mesh.packet()
+                if reply is None:
+                    self._send(503, b"this node is not enrolled", "text/plain")
+                    return
+                self._send(200, reply, "application/octet-stream")
 
         return Handler

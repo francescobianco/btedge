@@ -1,9 +1,11 @@
 """Thread-safe store of what this node sees and what the mesh reports.
 
 Every node is the only authority on its own observations. A node's state is
-versioned by a sequence number that only the owner increments; other nodes keep
-the newest copy and forward it. Ages are relative (seconds since seen) so the
-mesh never depends on synchronised clocks.
+versioned by a sequence number that only the owner increments and signed with
+its node key (see trust.py); other nodes keep the newest copy and forward the
+signed body untouched. Ages inside a body are relative to its creation and the
+state's own age travels outside the signature, so the mesh never depends on
+synchronised clocks.
 
 Device labels set by users travel with the owner's state and are resolved
 last-writer-wins on their (wall clock) timestamp.
@@ -14,6 +16,7 @@ hears the device best); that node runs it and publishes the result in its state.
 Commands and results carry relative ages and expire after COMMAND_TTL seconds.
 Only mesh members can sign states, so only they can issue commands.
 """
+import base64
 import json
 import logging
 import os
@@ -103,8 +106,10 @@ def _read_labels(path):
 
 class Registry:
     def __init__(self, node, device_ttl=60.0, node_ttl=60.0, max_hops=8, clock=time.monotonic,
-                 labels_path=None):
+                 labels_path=None, identity=None, verifier=None):
         self.node = node
+        self.identity = identity
+        self.verifier = verifier
         self.device_ttl = device_ttl
         self.node_ttl = node_ttl
         self.max_hops = max_hops
@@ -230,12 +235,19 @@ class Registry:
     # -- mesh exchange ------------------------------------------------------
 
     def snapshot(self):
-        """States to gossip: our own (with a fresh seq) followed by every known remote."""
+        """Wire states to gossip: our own, freshly signed, then every known remote as received."""
         now = self._clock()
+        ident = self.identity
         with self._lock:
             self._prune(now)
             self._seq = max(self._seq + 1, int(time.time() * 1000))
-            return [self._local_state(now)] + list(self._remote_states(now))
+            body = {k: v for k, v in self._local_state(now).items() if k not in ("age", "hops")}
+            remotes = [{"body": s["_body"], "sig": s["_sig"], "age": round(self._age(s, now), 1), "hops": s["hops"]}
+                       for s in self._remote.values()]
+        body.update(key=ident.public, cert=ident.cert, machine=ident.machine)
+        text = json.dumps(body, separators=(",", ":"), sort_keys=True)
+        own = {"body": text, "sig": base64.b64encode(ident.sign(text.encode())).decode(), "age": 0.0, "hops": 0}
+        return [own] + remotes
 
     def merge(self, sender, states, via, source=None):
         """Merge states received from `sender` over transport `via`. Returns how many were accepted."""
@@ -244,15 +256,16 @@ class Registry:
         with self._lock:
             if sender != self.node["id"]:
                 self._links[sender] = {"via": via, "addr": source, "_seen": now}
-            for state in states:
+            for wire in states:
                 try:
+                    state = self.verifier.state(wire)
                     node_id = str(state["id"])
                     seq = int(state["seq"])
-                    age = float(state.get("age", 0))
-                    hops = int(state.get("hops", 0)) + 1
+                    age = max(0.0, float(wire.get("age", 0)))
+                    hops = int(wire.get("hops", 0)) + 1
                     devices = [_clean_device(d) for d in state.get("devices", [])
                                if isinstance(d, dict) and d.get("address")]
-                except (KeyError, TypeError, ValueError):
+                except (KeyError, TypeError, ValueError):  # TrustError is a ValueError
                     continue
                 if node_id == self.node["id"] or hops > self.max_hops or age > self.node_ttl:
                     continue
@@ -265,10 +278,14 @@ class Registry:
                 self._remote[node_id] = {
                     "id": node_id, "name": str(state.get("name") or node_id)[:64],
                     "http": http if isinstance(http, int) else None, "role": role,
-                    "seq": seq, "age": age, "hops": hops, "devices": devices, "_received": now,
+                    "seq": seq, "age": age, "hops": hops, "_received": now,
+                    "_body": wire["body"], "_sig": wire["sig"],
+                    # body ages are relative to its creation: add the state's age once here
+                    "devices": [dict(d, age=d["age"] + age) for d in devices],
                     "labels": _clean_labels(state.get("labels")),
-                    "commands": _clean_commands(state.get("commands")),
-                    "results": _clean_results(state.get("results")),
+                    "commands": [dict(c, age=c["age"] + age) for c in _clean_commands(state.get("commands"))],
+                    "results": {cid: dict(r, age=r["age"] + age)
+                                for cid, r in _clean_results(state.get("results")).items()},
                 }
                 accepted += 1
         return accepted

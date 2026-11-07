@@ -35,17 +35,24 @@ Scritto in Python 3 con la sola libreria standard più `python3-dbus` / `python3
   - **IP / internet**: `POST /api/mesh/sync` verso i `peers` configurati; la risposta
     contiene lo stato del peer (push-pull). Un nodo dietro NAT si collega a un nodo
     pubblico, che inoltra il suo stato al resto della mesh.
-- **Sicurezza: la mesh appartiene a una chiave SSH.** `mesh.owner` è la chiave
-  pubblica SSH del proprietario; `mesh.credential` è la sua firma SSH (`ssh-keygen -Y
-  sign`, namespace `btedge-mesh`) su un messaggio fisso, prodotta con
-  `python3 -m btedge credential` sulla macchina che ha la chiave (passa da ssh-agent: la
-  chiave privata non esce mai). Le firme RSA/Ed25519 sono deterministiche, quindi chi sa
-  firmare allo stesso modo ottiene la stessa credenziale. All'avvio ogni nodo verifica la
-  credenziale contro `mesh.owner` e, se non è del proprietario, non parte; la chiave
-  HMAC-SHA256 che firma ogni pacchetto è derivata dalla credenziale, quindi senza di
-  essa non si entra (i pacchetti estranei vengono rifiutati). La credenziale va tenuta
-  segreta come una password. I dati sono firmati ma **non cifrati**: via internet usa
-  HTTPS o una VPN.
+- **Sicurezza: solo il proprietario crea nodi.** La mesh è identificata dalla chiave
+  pubblica SSH del proprietario (`mesh.owner`). Ogni nodo genera al primo avvio una sua
+  chiave Ed25519 (`<state_dir>/node.key`, non esce mai dalla macchina; l'id del nodo
+  deriva dalla chiave) e resta fuori dalla mesh finché il proprietario non lo accredita:
+
+  ```sh
+  python3 -m btedge enroll root@orangepi          # o la cartella di stato di un nodo locale
+  ```
+
+  `enroll` legge la richiesta del nodo (id, chiave pubblica, impronta della macchina da
+  `/etc/machine-id`), la firma con `ssh-keygen -Y sign` (via ssh-agent: la chiave privata
+  del proprietario non esce mai) e scrive `<state_dir>/node.cert`; il nodo entra entro
+  pochi secondi, senza riavvio. Il certificato **non è portabile**: senza la chiave
+  privata del nodo non serve a niente, e copiando la cartella di stato su un'altra
+  macchina il nodo lo rifiuta. Ogni nodo firma il proprio stato e ogni pacchetto; gli
+  altri li accettano solo con un certificato valido del proprietario. Non c'è nessun
+  segreto condiviso. I dati sono firmati ma **non cifrati**: via internet usa HTTPS o
+  una VPN.
 
 ## Pannello
 
@@ -66,7 +73,8 @@ sudo /opt/btedge/deploy/install.sh
 
 Il pannello è su `http://<ip-del-nodo>:4646`. La configurazione è in
 `/etc/btedge/config.json` (vedi `deploy/config.example.json`); per far parte della
-stessa mesh i nodi devono avere gli stessi `mesh.owner` e `mesh.credential`. Per aggiornare:
+stessa mesh i nodi devono avere lo stesso `mesh.owner` ed essere accreditati con
+`python3 -m btedge enroll` (lo ricorda anche l'installer). Per aggiornare:
 `cd /opt/btedge && sudo git pull && sudo systemctl restart btedge`.
 
 Su macchine con VPN o molti bridge (Docker) imposta `mesh.lan.interface` (es. `"eth0"`),
@@ -115,9 +123,19 @@ Il nodo di controllo pubblico è `btedge.yafb.net`, deployato con
 ../vps-supervisor/vps-supervisor deploy deploy/btedge.yafb.net.yml
 ```
 
-Username, password del pannello e credenziale della mesh vengono chiesti al primo deploy e conservati sul
+L'immagine Docker non contiene nessuna identità: la chiave del nodo nasce al primo avvio
+nel volume `/var/lib/btedge-control` del server, quindi un altro container dalla stessa
+immagine è un nodo nuovo, non accreditato. Il certificato è legato anche al
+`/etc/machine-id` dell'host (montato in sola lettura): copiare il volume su un altro
+server non basta. Dopo il primo deploy, una volta sola:
+
+```sh
+python3 -m btedge enroll root@82.165.241.56 --state-dir /var/lib/btedge-control
+```
+
+Username e password del pannello vengono chiesti al primo deploy e conservati sul
 server (`--ask all` per cambiarli). In container la config arriva da variabili
-d'ambiente: `BTEDGE_ROLE`, `BTEDGE_NODE_NAME`, `BTEDGE_PUBLIC_URL`, `BTEDGE_MESH_OWNER`, `BTEDGE_MESH_CREDENTIAL`,
+d'ambiente: `BTEDGE_ROLE`, `BTEDGE_NODE_NAME`, `BTEDGE_PUBLIC_URL`, `BTEDGE_MESH_OWNER`,
 `BTEDGE_PEERS` (separati da virgola), `BTEDGE_LAN`, `BTEDGE_ADMIN_USER`,
 `BTEDGE_ADMIN_PASSWORD`, `BTEDGE_PORT`, `BTEDGE_STATE_DIR`.
 
@@ -128,9 +146,9 @@ python3 -m btedge --fake --port 4646   # dispositivi simulati, nessun Bluetooth 
 python3 -m unittest discover -s tests
 ```
 
-Anche in sviluppo servono `mesh.owner` e `mesh.credential` (`BTEDGE_MESH_OWNER`,
-`BTEDGE_MESH_CREDENTIAL`): per non toccare la mesh reale usa una chiave SSH di prova e
-una `mesh.lan.port` diversa. Due istanze `--fake` sulla stessa LAN si trovano via multicast.
+Anche in sviluppo serve `mesh.owner` (`BTEDGE_MESH_OWNER`) e i nodi vanno accreditati
+(`python3 -m btedge enroll <state_dir>`): per non toccare la mesh reale usa una chiave
+SSH di prova e una `mesh.lan.port` diversa. Due istanze `--fake` sulla stessa LAN si trovano via multicast.
 
 ## API
 

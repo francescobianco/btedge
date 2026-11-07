@@ -1,8 +1,9 @@
 # Control node (no Bluetooth) on the VPS: mesh hub over IP and admin panel.
 #   ../vps-supervisor/vps-supervisor deploy deploy/btedge.yafb.net.yml
-# Panel username/password and the mesh credential are asked at the first deploy and
-# stored on the host by vps-supervisor (re-ask with --ask NAME). The credential is the
-# owner's SSH signature: `python3 -m btedge credential` on the machine with the key.
+# Panel username/password are asked at the first deploy and stored on the host by
+# vps-supervisor (re-ask with --ask NAME). The node key is generated on first start in
+# the volume; admit the node into the mesh once, from the owner's machine:
+#   python3 -m btedge enroll root@82.165.241.56 --state-dir /var/lib/btedge-control
 
 app: btedge
 host: root@82.165.241.56
@@ -18,9 +19,9 @@ env:
   BTEDGE_NODE_NAME: btedge.yafb.net
   BTEDGE_PUBLIC_URL: https://btedge.yafb.net
   BTEDGE_MESH_OWNER: ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCmvN8lXQUnrROcHivUNIboVQTc/8w/ZwT++Auuo9v3xPns9fdtMfa7d2w4pWRni5bEmGztZDDQY/vNg+XseIkk1CAcP8LUB3lN1bQGn7JT5WuuCDSeBQbvgr0om2dDxtenqyra10aIE5/gehqkLODFMvATlQPrZO4jVPlka6xtng4N2sp/YHngnvmt4HmnnMIFstCD6rg7vFntUtPoewpVzKeFNSWUUcjnp4/cazP6KPaUoSeY7OohlV5Bg7tppNKTbm/61nWm1X7YLCPGtsuaLwDucV98G+Uruw5abs8xXoAZBwa9XwJZKknHqXyEBcX/xe36LCnmuf5q5w0oHx7rDOiTQ8k9EQjSb28+ddWlXGGyULBiAHKiyg3My3QbyNViB1M8wrwwuLcHQyWPxZvbAjrhD+7Md9Qcd6ZXmijz6eZKEy0/N6cs5h9Pe+NHkLCX2nEkRG+ezQNmiYAcQY01L9fiPtv86iDlX8FpTupbIq9RNj84lXLf9q5/dppCBTU=
-  BTEDGE_MESH_CREDENTIAL: ${secret:Credenziale mesh (python3 -m btedge credential)}
   BTEDGE_ADMIN_USER: ${prompt:Username del pannello admin}
   BTEDGE_ADMIN_PASSWORD: ${secret:Password del pannello admin}
 
 volumes:
   - /var/lib/btedge-control:/var/lib/btedge
+  - /etc/machine-id:/etc/machine-id:ro      # binds the node certificate to this host

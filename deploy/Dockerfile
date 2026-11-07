@@ -1,7 +1,9 @@
 # btedge control node: no Bluetooth, mesh hub over IP and admin panel.
 # Build context is the repo root (see deploy/btedge.yafb.net.yml).
-FROM python:3.13-alpine
-RUN apk add --no-cache openssh-keygen
+# The image holds no identity: the node key is generated on first start in the
+# /var/lib/btedge volume and must be enrolled by the mesh owner.
+FROM alpine:3.21
+RUN apk add --no-cache python3 py3-cryptography openssh-keygen
 WORKDIR /opt/btedge
 COPY btedge ./btedge
 ENV PYTHONUNBUFFERED=1 \
@@ -11,4 +13,4 @@ ENV PYTHONUNBUFFERED=1 \
     BTEDGE_PORT=4646
 VOLUME /var/lib/btedge
 EXPOSE 4646
-CMD ["python", "-m", "btedge"]
+CMD ["python3", "-m", "btedge"]

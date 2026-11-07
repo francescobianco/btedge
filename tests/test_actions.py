@@ -5,8 +5,9 @@ import urllib.request
 from btedge.actions import Dispatcher
 from btedge.gatt import FakeGatt
 from btedge.profiler import Profiler
-from btedge.registry import Registry
 from btedge.web import Panel
+
+from meshkit import registry
 
 MSF0 = {"address": "BA:03:5C:0B:21:E1", "name": "MSF0", "connected": True,
         "uuids": ["00001800-0000-1000-8000-00805f9b34fb", "0000cc00-0000-1000-8000-00805f9b34fb",
@@ -16,10 +17,6 @@ MSF0 = {"address": "BA:03:5C:0B:21:E1", "name": "MSF0", "connected": True,
 class FakeBackend:
     def gatt(self, address):
         return FakeGatt(address)
-
-
-def node(node_id, name, role="edge"):
-    return {"id": node_id, "name": name, "http": 0, "role": role}
 
 
 class ProfilerTest(unittest.TestCase):
@@ -43,18 +40,18 @@ class ProfilerTest(unittest.TestCase):
 class ActionFlowTest(unittest.TestCase):
     def test_command_travels_the_mesh_and_the_edge_vibrates_the_band(self):
         FakeGatt.writes.clear()
-        control = Registry(node("c" * 16, "ctl", "control"))
-        edge = Registry(node("e" * 16, "yoga7"))
+        control = registry("ctl", role="control")
+        edge = registry("yoga7")
         edge.observe(MSF0["address"], {k: v for k, v in MSF0.items() if k != "address"})
-        control.merge("e" * 16, edge.snapshot(), via="ip")
+        control.merge(edge.node["id"], edge.snapshot(), via="ip")
 
         panel = Panel(control, None, None, "127.0.0.1", 0, profiler=Profiler())
         sent = panel.act(MSF0["address"], "vibrate")
-        self.assertEqual(sent["node"], "e" * 16)
+        self.assertEqual(sent["node"], edge.node["id"])
         with self.assertRaises(LookupError):
             panel.act(MSF0["address"], "explode")
 
-        edge.merge("c" * 16, control.snapshot(), via="ip")
+        edge.merge(control.node["id"], control.snapshot(), via="ip")
         dispatcher = Dispatcher(edge, FakeBackend(), Profiler())
         (cmd,) = edge.pending()
         edge.set_result(cmd["id"], "running")
@@ -62,11 +59,11 @@ class ActionFlowTest(unittest.TestCase):
         dispatcher.execute(cmd)
         self.assertEqual(FakeGatt.writes, [(MSF0["address"], "0000cc06-0000-1000-8000-00805f9b34fb", b"\x08\x01")])
 
-        control.merge("e" * 16, edge.snapshot(), via="ip")
+        control.merge(edge.node["id"], edge.snapshot(), via="ip")
         self.assertEqual(control.result(sent["id"])["status"], "ok")
 
     def test_api(self):
-        reg = Registry(node("e" * 16, "yoga7"))
+        reg = registry("yoga7")
         reg.observe(MSF0["address"], {k: v for k, v in MSF0.items() if k != "address"})
         panel = Panel(reg, None, None, "127.0.0.1", 0, profiler=Profiler())
         panel.start()

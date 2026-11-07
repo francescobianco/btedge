@@ -1,18 +1,13 @@
 import base64
-import os
-import subprocess
 import tempfile
 import unittest
 import urllib.error
 import urllib.request
 
 from btedge import config, trust
+from btedge.registry import Registry
 
-
-def make_owner(tmp):
-    key = os.path.join(tmp, "id_ed25519")
-    subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", key], check=True)
-    return trust.issue(key + ".pub")
+from meshkit import owner
 from btedge.registry import Registry
 from btedge.web import Panel
 
@@ -20,41 +15,29 @@ from btedge.web import Panel
 class ControlConfigTest(unittest.TestCase):
     def test_control_role_generates_and_keeps_secrets(self):
         with tempfile.TemporaryDirectory() as tmp:
-            owner, cred = make_owner(tmp)
             env = {"BTEDGE_ROLE": "control", "BTEDGE_STATE_DIR": tmp, "BTEDGE_LAN": "false",
-                   "BTEDGE_MESH_OWNER": owner, "BTEDGE_MESH_CREDENTIAL": cred,
+                   "BTEDGE_MESH_OWNER": owner()[0] + " comment",
                    "BTEDGE_PEERS": "http://a:1, http://b:2"}
             cfg = config.load(None, environ=env)
             self.assertEqual(cfg["scanner"]["backend"], "none")
             self.assertFalse(cfg["mesh"]["lan"]["enabled"])
             self.assertEqual(cfg["mesh"]["peers"], ["http://a:1", "http://b:2"])
-            self.assertTrue(cfg["mesh"]["key"] and cfg["admin"]["password"])
+            self.assertEqual(cfg["mesh"]["owner"], owner()[0])
+            self.assertTrue(cfg["admin"]["password"])
             self.assertEqual(config.load(None, environ=dict(env, BTEDGE_ADMIN_USER="fra"))["admin"]["user"], "fra")
             again = config.load(None, environ=env)
-            self.assertEqual((again["mesh"]["key"], again["admin"]["password"]),
-                             (cfg["mesh"]["key"], cfg["admin"]["password"]))
+            self.assertEqual(again["admin"]["password"], cfg["admin"]["password"])
 
-    def test_membership_needs_the_owners_signature(self):
+    def test_owner_key_is_required(self):
         with tempfile.TemporaryDirectory() as tmp:
-            owner, cred = make_owner(tmp)
-            base = {"BTEDGE_STATE_DIR": tmp, "BTEDGE_MESH_OWNER": owner}
-            key = config.load(None, environ=dict(base, BTEDGE_MESH_CREDENTIAL=cred))["mesh"]["key"]
-            self.assertEqual(key, trust.verify(owner, trust.issue(os.path.join(tmp, "id_ed25519.pub"))[1]))
             with self.assertRaises(ValueError):
-                config.load(None, environ=base)  # no credential
-            os.makedirs(os.path.join(tmp, "other"))
-            _, foreign = make_owner(os.path.join(tmp, "other"))  # signed by someone else
-            with self.assertRaises(trust.TrustError):
-                config.load(None, environ=dict(base, BTEDGE_MESH_CREDENTIAL=foreign))
-            with self.assertRaises(trust.TrustError):
-                config.load(None, environ=dict(base, BTEDGE_MESH_CREDENTIAL=cred[:-8] + "AAAAAAAA"))
+                config.load(None, environ={"BTEDGE_STATE_DIR": tmp})
 
     def test_rejects_unknown_role(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ValueError):
-                owner, cred = make_owner(tmp)
                 config.load(None, environ={"BTEDGE_ROLE": "bogus", "BTEDGE_STATE_DIR": tmp,
-                                           "BTEDGE_MESH_OWNER": owner, "BTEDGE_MESH_CREDENTIAL": cred})
+                                           "BTEDGE_MESH_OWNER": owner()[0]})
 
 
 class AuthTest(unittest.TestCase):

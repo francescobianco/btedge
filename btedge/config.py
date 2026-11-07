@@ -1,9 +1,8 @@
-"""Configuration loading with defaults and a persistent node identity."""
+"""Configuration loading with defaults (the node identity lives in trust.Identity)."""
 import copy
 import json
 import logging
 import os
-import re
 import secrets
 import socket
 
@@ -12,13 +11,11 @@ from . import trust
 log = logging.getLogger(__name__)
 
 DEFAULT_PATH = "/etc/btedge/config.json"
-NODE_ID_RE = re.compile(r"^[0-9a-f]{16}$")
 
 ROLES = ("edge", "control")
 
 DEFAULTS = {
-    "node_id": None,
-    # edge: scans Bluetooth and is a room on the map.
+    # edge: scans Bluetooth.
     # control: no Bluetooth; a hub other nodes sync with (e.g. on a VPS) and the admin panel.
     "role": "edge",
     "public_url": None,       # control: URL edge nodes put in mesh.peers (shown in the panel)
@@ -43,11 +40,9 @@ DEFAULTS = {
         "password": None,
     },
     "mesh": {
-        # Membership (see trust.py): owner = the mesh owner's SSH public key; credential =
-        # the owner's signature from `python3 -m btedge credential` (secret). The packet key
-        # is derived from the credential after checking it against the owner key.
+        # The mesh owner's SSH public key. Each node has its own key and joins once the
+        # owner enrols it: `python3 -m btedge enroll <host>` (see trust.py).
         "owner": None,
-        "credential": None,
         "gossip_interval": 5,
         "node_ttl": 60,
         "max_hops": 8,
@@ -78,20 +73,6 @@ def _state_dir(preferred):
     raise RuntimeError("no writable state directory")
 
 
-def _node_id(state_dir):
-    path = os.path.join(state_dir, "node_id")
-    try:
-        with open(path) as fh:
-            node_id = fh.read().strip()
-        if NODE_ID_RE.match(node_id):
-            return node_id
-    except FileNotFoundError:
-        pass
-    node_id = secrets.token_hex(8)
-    with open(path, "w") as fh:
-        fh.write(node_id + "\n")
-    log.info("generated node id %s", node_id)
-    return node_id
 
 
 def _secret(state_dir, name, nbytes):
@@ -114,9 +95,9 @@ def _secret(state_dir, name, nbytes):
 
 # Environment overrides, handy in containers: BTEDGE_<NAME> -> config path.
 ENV = {
-    "ROLE": ("role",), "NODE_NAME": ("node_name",), "NODE_ID": ("node_id",),
+    "ROLE": ("role",), "NODE_NAME": ("node_name",),
     "PUBLIC_URL": ("public_url",), "STATE_DIR": ("state_dir",), "PORT": ("http", "port"),
-    "MESH_OWNER": ("mesh", "owner"), "MESH_CREDENTIAL": ("mesh", "credential"), "PEERS": ("mesh", "peers"), "LAN": ("mesh", "lan", "enabled"),
+    "MESH_OWNER": ("mesh", "owner"), "PEERS": ("mesh", "peers"), "LAN": ("mesh", "lan", "enabled"),
     "LAN_INTERFACE": ("mesh", "lan", "interface"), "ADMIN_USER": ("admin", "user"),
     "ADMIN_PASSWORD": ("admin", "password"),
 }
@@ -152,17 +133,10 @@ def load(path=None, environ=None):
     if cfg["role"] not in ROLES:
         raise ValueError("role must be one of %s" % ", ".join(ROLES))
     cfg["state_dir"] = _state_dir(cfg["state_dir"])
-    if cfg["node_id"]:
-        cfg["node_id"] = str(cfg["node_id"]).lower()
-        if not NODE_ID_RE.match(cfg["node_id"]):
-            raise ValueError("node_id must be 16 hex characters")
-    else:
-        cfg["node_id"] = _node_id(cfg["state_dir"])
     mesh = cfg["mesh"]
     if not mesh["owner"]:
         raise ValueError("mesh.owner is required: the SSH public key of the mesh owner")
     mesh["owner"] = trust.owner_key(mesh["owner"])
-    mesh["key"] = trust.verify(mesh["owner"], mesh["credential"])
     mesh["fingerprint"] = trust.fingerprint(mesh["owner"])
     if cfg["role"] == "control":
         cfg["scanner"]["backend"] = "none"

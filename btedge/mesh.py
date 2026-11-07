@@ -1,6 +1,7 @@
 """Mesh transports: UDP multicast on the LAN and HTTP push-pull with IP peers.
 
-Both carry the same signed packet (see protocol.py). LAN gossip discovers
+Both carry the same signed packet (see protocol.py); a node sends nothing until
+it is enrolled (see trust.py). LAN gossip discovers
 neighbours with zero configuration; IP peers let nodes on different networks
 (or behind NAT, talking to a public node) join the same mesh. Every node
 forwards the states it knows, so the mesh spans all of them.
@@ -35,12 +36,11 @@ def interface_address(name):
 
 
 class Mesh:
-    def __init__(self, registry, cfg):
+    def __init__(self, registry, cfg, identity, verifier):
         self.registry = registry
         self.node_id = registry.node["id"]
-        self.key = cfg.get("key") or ""
-        if not self.key:
-            raise ValueError("a mesh key is required: unsigned meshes are not supported")
+        self.identity = identity
+        self.verifier = verifier
         self.fingerprint = cfg.get("fingerprint")
         self.interval = float(cfg["gossip_interval"])
         self.lan_cfg = cfg["lan"]
@@ -63,6 +63,15 @@ class Mesh:
                 log.error("LAN mesh disabled: %s", exc)
         if self.peers:
             threading.Thread(target=self._peer_loop, name="mesh-peers", daemon=True).start()
+        threading.Thread(target=self._watch_identity, name="mesh-identity", daemon=True).start()
+
+    def _watch_identity(self):
+        """Notice a certificate written by `btedge enroll` (or removed) without a restart."""
+        while not self._stop.wait(5):
+            try:
+                self.identity.reload()
+            except OSError as exc:
+                log.error("cannot read node certificate: %s", exc)
 
     def stop(self):
         self._stop.set()
@@ -73,23 +82,27 @@ class Mesh:
         self._kick.set()
 
     def packet(self, limit=None):
+        """Our signed packet, or None while this node is not enrolled."""
+        self.identity.reload()
+        if not self.identity.enrolled:
+            return None
         states = self.registry.snapshot()
-        pkt = protocol.encode(self.node_id, states, self.key)
+        pkt = protocol.encode(self.identity, states)
         if limit and len(pkt) > limit:
-            pkt = protocol.encode(self.node_id, states[:1], self.key)
+            pkt = protocol.encode(self.identity, states[:1])
         return pkt
 
     def receive(self, packet, via, source):
         """Validate and merge a packet; returns the sender id or None if rejected."""
         try:
-            msg = protocol.decode(packet, self.key)
+            sender, states = protocol.decode(packet, self.verifier)
         except protocol.ProtocolError as exc:
             log.debug("rejected %s packet from %s: %s", via, source, exc)
             return None
-        if msg["from"] == self.node_id:
-            return msg["from"]
-        self.registry.merge(msg["from"], msg["states"], via=via, source=source)
-        return msg["from"]
+        if sender == self.node_id:
+            return sender
+        self.registry.merge(sender, states, via=via, source=source)
+        return sender
 
     # -- LAN multicast ------------------------------------------------------
 
@@ -126,9 +139,11 @@ class Mesh:
     def _lan_gossip(self):
         while not self._stop.is_set():
             try:
-                self._sock.sendto(self.packet(limit=UDP_LIMIT), self._group)
-                self.lan_status["sent"] += 1
-                self.lan_status["error"] = None
+                pkt = self.packet(limit=UDP_LIMIT)
+                if pkt:
+                    self._sock.sendto(pkt, self._group)
+                    self.lan_status["sent"] += 1
+                    self.lan_status["error"] = None
             except OSError as exc:
                 self.lan_status["error"] = str(exc)
             self._stop.wait(self.interval)
@@ -137,13 +152,17 @@ class Mesh:
 
     def sync_peer(self, url):
         status = self.peer_status.setdefault(url, {"ok": None, "error": None, "last_ok": None})
-        req = urllib.request.Request(url + "/api/mesh/sync", data=self.packet(), method="POST",
+        pkt = self.packet()
+        if pkt is None:
+            status.update(ok=False, error="node not enrolled")
+            return
+        req = urllib.request.Request(url + "/api/mesh/sync", data=pkt, method="POST",
                                      headers={"Content-Type": "application/octet-stream"})
         try:
             with urllib.request.urlopen(req, timeout=5) as resp:
                 body = resp.read(protocol.MAX_PACKET + 1)
             if self.receive(body, "ip", urlparse(url).hostname) is None:
-                raise ValueError("invalid reply (mesh key mismatch?)")
+                raise ValueError("invalid reply (peer not enrolled in this mesh?)")
             status.update(ok=True, error=None, last_ok=time.time())
         except Exception as exc:  # network errors are expected; keep the loop alive
             status.update(ok=False, error=str(exc))
@@ -160,5 +179,5 @@ class Mesh:
         return {
             "lan": dict(self.lan_status, group="%s:%s" % (self.lan_cfg["group"], self.lan_cfg["port"])),
             "peers": [dict(s, url=u) for u, s in self.peer_status.items()],
-            "signed": bool(self.key), "owner": self.fingerprint,
+            "owner": self.fingerprint, "enrolled": self.identity.enrolled, "problem": self.identity.problem,
         }

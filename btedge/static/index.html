@@ -218,7 +218,7 @@ function renderSide() {
     sc.state === "scanning" ? `Scansione · ${sc.adapter}` : sc.state === "no_adapter" ? "Nessun adattatore BT" : sc.error || "Bluetooth non attivo");
   if (m.lan && m.lan.enabled) row(m.lan.error ? "bad" : "ok", "LAN " + m.lan.group);
   for (const p of m.peers || []) row(p.ok ? "ok" : p.ok === false ? "bad" : "warn", p.url.replace(/^https?:\/\//, ""));
-  if (m.owner) row("ok", "Mesh " + m.owner.slice(7, 19) + "…");
+  if (m.owner) row(m.enrolled ? "ok" : "bad", (m.enrolled ? "Mesh " : "Non accreditato · ") + m.owner.slice(7, 19) + "…");
   if (st.join) f.push(`<button class="link" data-join>Collega un nodo edge</button>`);
   f.push(`<div class="row" style="color:var(--faint)"><span>btedge ${esc(st.version)}</span></div>`);
   $("foot").innerHTML = f.join("");
@@ -250,10 +250,11 @@ function renderDetail() {
     box.classList.add("open");
     const url = ui.st.join.url || location.origin;
     inner.innerHTML = `<header><h2>Collega un nodo edge</h2><button class="x" data-close>×</button></header>
-      <p class="note">Solo chi ha la chiave SSH del proprietario può far entrare un nodo. Sulla macchina con la chiave:</p>
-      <pre>python3 -m btedge credential</pre>
-      <p class="note" style="margin-top:14px">Metti <span class="mono">owner</span> e <span class="mono">credential</span> in <span class="mono">/etc/btedge/config.json</span> del nodo, con questo peer, poi <span class="mono">systemctl restart btedge</span>.</p>
-      <pre>${esc(JSON.stringify({mesh: {owner: ui.st.join.owner, credential: "btedge1:…", peers: [url]}}, null, 2))}</pre>`;
+      <p class="note">1. Sul nodo, in <span class="mono">/etc/btedge/config.json</span>, poi <span class="mono">systemctl restart btedge</span>:</p>
+      <pre>${esc(JSON.stringify({mesh: {owner: ui.st.join.owner, peers: [url]}}, null, 2))}</pre>
+      <p class="note" style="margin-top:14px">2. Il nodo genera la sua chiave e resta fuori dalla mesh. Solo il proprietario lo accredita, dalla macchina con la sua chiave SSH:</p>
+      <pre>python3 -m btedge enroll root@&lt;nodo&gt;</pre>
+      <p class="note" style="margin-top:14px">Il certificato vale solo per quel nodo su quella macchina.</p>`;
     return;
   }
   const d = ui.sel && ui.st.devices.find(x => x.address === ui.sel);

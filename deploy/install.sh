@@ -7,7 +7,7 @@ CONFIG=${1:-}
 SRC=$(cd "$(dirname "$0")/.." && pwd)
 DEST=/opt/btedge
 
-apt-get install -y --no-install-recommends bluez python3 python3-dbus python3-gi
+apt-get install -y --no-install-recommends bluez python3 python3-dbus python3-gi openssh-client
 
 if [ "$SRC" != "$DEST" ]; then
     mkdir -p "$DEST"
@@ -20,10 +20,10 @@ if [ ! -f /etc/btedge/config.json ] && [ -n "$CONFIG" ]; then
     install -m 600 "$CONFIG" /etc/btedge/config.json
     echo "installed /etc/btedge/config.json from $CONFIG"
 elif [ ! -f /etc/btedge/config.json ]; then
-    sed "s/\"orangepizero\"/\"$(hostname)\"/; s/\"change-me\"/\"$(head -c 16 /dev/urandom | od -An -tx1 | tr -d " \n")\"/" \
-        "$SRC/deploy/config.example.json" > /etc/btedge/config.json
+    sed "s/\"orangepizero\"/\"$(hostname)\"/" "$SRC/deploy/config.example.json" > /etc/btedge/config.json
     chmod 600 /etc/btedge/config.json
-    echo "created /etc/btedge/config.json (copy mesh.key to every node of the same mesh)"
+    echo "created /etc/btedge/config.json: fill mesh.owner and mesh.credential"
+    echo "(run 'python3 -m btedge credential' on the machine holding the owner's SSH key)"
 fi
 
 install -m 644 "$SRC/deploy/btedge.service" /etc/systemd/system/btedge.service

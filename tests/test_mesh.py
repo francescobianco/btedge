@@ -85,6 +85,10 @@ class ProtocolTest(unittest.TestCase):
             protocol.decode(pkt, key="k2")
         with self.assertRaises(protocol.ProtocolError):
             protocol.decode(pkt[:-1] + b"x", key="k1")
+        with self.assertRaises(protocol.ProtocolError):
+            protocol.decode(pkt, key="")
+        with self.assertRaises(protocol.ProtocolError):
+            protocol.encode("a" * 16, [], key="")
 
     def test_device_fields_from_bluez(self):
         fields = device_fields({

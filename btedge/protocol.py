@@ -2,9 +2,9 @@
 
     packet = b"BTE1" + mac(32 bytes) + zlib(json({"v": 1, "from": id, "states": [...]}))
 
-The mac is HMAC-SHA256 with the mesh key, or plain SHA-256 when no key is set,
-so nodes with different keys silently ignore each other. Payloads are signed,
-not encrypted.
+The mac is HMAC-SHA256 with the mesh key: only nodes holding the key can produce
+packets the others accept, so nodes with different keys ignore each other. There
+is no unsigned mode. Payloads are signed, not encrypted.
 """
 import hashlib
 import hmac
@@ -22,18 +22,18 @@ class ProtocolError(ValueError):
 
 
 def _mac(key, payload):
-    if key:
-        return hmac.new(key.encode(), payload, hashlib.sha256).digest()
-    return hashlib.sha256(payload).digest()
+    if not key:
+        raise ProtocolError("no mesh key")
+    return hmac.new(key.encode(), payload, hashlib.sha256).digest()
 
 
-def encode(sender, states, key=""):
+def encode(sender, states, key):
     body = json.dumps({"v": VERSION, "from": sender, "states": states}, separators=(",", ":"))
     payload = zlib.compress(body.encode())
     return MAGIC + _mac(key, payload) + payload
 
 
-def decode(packet, key=""):
+def decode(packet, key):
     if len(packet) > MAX_PACKET or len(packet) < 36 or not packet.startswith(MAGIC):
         raise ProtocolError("not a btedge packet")
     mac, payload = packet[4:36], packet[36:]

@@ -39,10 +39,14 @@ class Mesh:
         self.registry = registry
         self.node_id = registry.node["id"]
         self.key = cfg.get("key") or ""
+        if not self.key:
+            raise ValueError("a mesh key is required: unsigned meshes are not supported")
+        self.fingerprint = cfg.get("fingerprint")
         self.interval = float(cfg["gossip_interval"])
         self.lan_cfg = cfg["lan"]
         self.peers = [p.rstrip("/") for p in cfg.get("peers", [])]
         self._stop = threading.Event()
+        self._kick = threading.Event()
         self._sock = None
         self.lan_status = {"enabled": bool(self.lan_cfg.get("enabled")), "error": None,
                            "sent": 0, "received": 0, "rejected": 0}
@@ -62,6 +66,11 @@ class Mesh:
 
     def stop(self):
         self._stop.set()
+        self._kick.set()
+
+    def kick(self):
+        """Sync with IP peers now instead of at the next interval (e.g. an action result)."""
+        self._kick.set()
 
     def packet(self, limit=None):
         states = self.registry.snapshot()
@@ -144,11 +153,12 @@ class Mesh:
         while not self._stop.is_set():
             for url in self.peers:
                 self.sync_peer(url)
-            self._stop.wait(self.interval)
+            self._kick.wait(self.interval)
+            self._kick.clear()
 
     def status(self):
         return {
             "lan": dict(self.lan_status, group="%s:%s" % (self.lan_cfg["group"], self.lan_cfg["port"])),
             "peers": [dict(s, url=u) for u, s in self.peer_status.items()],
-            "signed": bool(self.key),
+            "signed": bool(self.key), "owner": self.fingerprint,
         }

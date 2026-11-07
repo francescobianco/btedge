@@ -54,7 +54,8 @@ def device_fields(props):
 
 
 class BluezBackend:
-    def __init__(self, registry, node_id, adapter=None, advertise=True, cache_ttl=300, rescan_interval=20):
+    def __init__(self, registry, node_id, adapter=None, advertise=True, cache_ttl=300, rescan_interval=20,
+                 keep_connected=None):
         self.registry = registry
         self.node_id = node_id
         self.adapter_name = adapter
@@ -69,9 +70,15 @@ class BluezBackend:
         self._seen = {}
         self._adv = None
         self._adv_pending = False
+        self.keep_connected = [a.upper() for a in keep_connected or []]
+        self._connecting = set()
 
     def start(self):
         threading.Thread(target=self._run, name="bluez", daemon=True).start()
+
+    def gatt(self, address):
+        from .gatt import Gatt
+        return Gatt(address, adapter=self.status.get("adapter") or self.adapter_name or "hci0")
 
     def _set(self, **kwargs):
         for key in ("error", "beacon_error"):
@@ -167,7 +174,29 @@ class BluezBackend:
         if self.advertise and self._adv_supported and not self.status["advertising"] and not self._adv_pending:
             self._register_advertisement(obj)
         self._prune_cache(adapter)
+        self._reconnect()
         self._set(state="scanning", error=None)
+
+    def _reconnect(self):
+        """Connect the devices listed in scanner.keep_connected whenever they drop."""
+        for address in self.keep_connected:
+            path = "%s/dev_%s" % (self._adapter, address.replace(":", "_"))
+            if path in self._connecting or self._props.get(path, {}).get("Connected"):
+                continue
+            if path not in self._props:
+                continue  # unknown to BlueZ yet: pair it once, or wait for an advert
+            self._connecting.add(path)
+            device = self._dbus.Interface(self._bus.get_object(BLUEZ, path), DEVICE)
+
+            def done(path=path, address=address):
+                self._connecting.discard(path)
+                log.info("connected %s", address)
+
+            def failed(exc, path=path, address=address):
+                self._connecting.discard(path)
+                log.debug("connect %s: %s", address, exc.get_dbus_message() or exc)
+
+            device.Connect(reply_handler=done, error_handler=failed, timeout=30)
 
     def _prune_cache(self, adapter):
         """Drop long-gone unpaired devices so BlueZ's cache stays small on low-memory boards."""
@@ -293,6 +322,10 @@ class FakeBackend:
                 "period": rand.uniform(240, 900), "phase": rand.random(),
                 "roaming": i in self.ROAMING,
             })
+
+    def gatt(self, address):
+        from .gatt import FakeGatt
+        return FakeGatt(address)
 
     def start(self):
         threading.Thread(target=self._run, name="fake-bt", daemon=True).start()

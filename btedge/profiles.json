@@ -1,0 +1,38 @@
+{
+  "classes": {
+    "smartwatch": "Smartwatch",
+    "wristband": "Braccialetto",
+    "tracker": "Localizzatore",
+    "phone": "Telefono",
+    "computer": "Computer",
+    "headphones": "Cuffie",
+    "speaker": "Altoparlante",
+    "input": "Periferica",
+    "sensor": "Sensore",
+    "tv": "TV"
+  },
+  "profiles": [
+    {"id": "id115-plus", "label": "ID115 Plus (Yoho Sports)", "class": "wristband", "adapter": "yoho",
+     "match": {"services": ["cc00"], "name_prefix": ["MS"]}},
+    {"id": "find-me", "label": "Dispositivo Find Me", "adapter": "immediate_alert",
+     "match": {"services": ["1802"]}},
+
+    {"id": "mi-band", "label": "Xiaomi Mi Band", "class": "wristband", "match": {"name_regex": "^(Mi Smart Band|Mi Band|Xiaomi Smart Band)"}},
+    {"id": "amazfit", "label": "Amazfit", "class": "smartwatch", "match": {"name_regex": "^Amazfit"}},
+    {"id": "galaxy-watch", "label": "Samsung Galaxy Watch", "class": "smartwatch", "match": {"name_regex": "Galaxy Watch"}},
+    {"id": "apple-watch", "label": "Apple Watch", "class": "smartwatch", "match": {"name_regex": "Apple Watch"}},
+    {"id": "fitbit", "label": "Fitbit", "class": "wristband", "match": {"manufacturer": [548]}},
+    {"id": "garmin", "label": "Garmin", "class": "smartwatch", "match": {"manufacturer": [135]}},
+    {"id": "huami", "label": "Huami / Zepp", "class": "wristband", "match": {"manufacturer": [343]}},
+    {"id": "tile", "label": "Tile", "class": "tracker", "match": {"manufacturer": [199]}},
+    {"id": "airpods", "label": "AirPods", "class": "headphones", "match": {"name_regex": "AirPods"}},
+    {"id": "ruuvi", "label": "RuuviTag", "class": "sensor", "match": {"manufacturer": [1177]}},
+
+    {"id": "generic-heart-rate", "label": "Fascia / band cardio", "class": "wristband", "match": {"services": ["180d"]}},
+    {"id": "generic-phone", "class": "phone", "match": {"icon": ["phone"]}},
+    {"id": "generic-computer", "class": "computer", "match": {"icon": ["computer"]}},
+    {"id": "generic-audio", "class": "headphones", "match": {"icon": ["audio-headset", "audio-headphones", "audio-card"]}},
+    {"id": "generic-input", "class": "input", "match": {"icon": ["input-keyboard", "input-mouse", "input-gaming", "input-tablet"]}},
+    {"id": "generic-watch", "class": "smartwatch", "match": {"icon": ["watch"]}}
+  ]
+}

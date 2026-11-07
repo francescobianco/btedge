@@ -7,14 +7,56 @@ mesh never depends on synchronised clocks.
 
 Device labels set by users travel with the owner's state and are resolved
 last-writer-wins on their (wall clock) timestamp.
+
+Actions on devices travel the same way: the node where someone clicks puts a
+command in its own state, addressed to the node that should run it (the one that
+hears the device best); that node runs it and publishes the result in its state.
+Commands and results carry relative ages and expire after COMMAND_TTL seconds.
+Only mesh members can sign states, so only they can issue commands.
 """
+import json
+import logging
+import os
+import secrets
+import sqlite3
 import threading
 import time
+
+log = logging.getLogger(__name__)
 
 DEVICE_FIELDS = (
     "name", "rssi", "connected", "paired", "address_type", "icon",
     "tx_power", "manufacturer", "uuids", "btedge_node",
 )
+
+
+COMMAND_TTL = 60.0
+RESULT_TTL = 120.0
+STATUSES = ("running", "ok", "error")
+
+
+def _clean_commands(commands):
+    out = []
+    for cmd in commands if isinstance(commands, list) else []:
+        try:
+            out.append({"id": str(cmd["id"])[:32], "node": str(cmd["node"])[:32],
+                        "address": str(cmd["address"])[:64], "action": str(cmd["action"])[:32],
+                        "age": float(cmd.get("age", 0))})
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out[:64]
+
+
+def _clean_results(results):
+    out = {}
+    for cid, res in (results if isinstance(results, dict) else {}).items():
+        if isinstance(res, dict) and res.get("status") in STATUSES:
+            try:
+                out[str(cid)[:32]] = {"status": res["status"], "error": str(res.get("error") or "")[:200] or None,
+                                      "age": float(res.get("age", 0))}
+            except (TypeError, ValueError):
+                continue
+    return out
 
 
 def _clean_labels(labels):
@@ -34,8 +76,34 @@ def _clean_device(dev):
     return out
 
 
+def _read_labels(path):
+    """Own labels from labels.json; the first time, import them from the old history db."""
+    try:
+        with open(path) as fh:
+            return _clean_labels(json.load(fh))
+    except FileNotFoundError:
+        pass
+    except ValueError:
+        log.warning("ignoring unreadable %s", path)
+        return {}
+    old = os.path.join(os.path.dirname(path), "btedge.db")
+    if not os.path.exists(old):
+        return {}
+    try:
+        with sqlite3.connect(old) as db:
+            rows = db.execute("SELECT address, label, label_ts FROM devices WHERE label_ts IS NOT NULL").fetchall()
+    except sqlite3.Error:
+        return {}
+    labels = {a: [l or "", ts] for a, l, ts in rows}
+    with open(path, "w") as fh:
+        json.dump(labels, fh)
+    log.info("imported %d device names from %s", len(labels), old)
+    return labels
+
+
 class Registry:
-    def __init__(self, node, device_ttl=60.0, node_ttl=60.0, max_hops=8, clock=time.monotonic):
+    def __init__(self, node, device_ttl=60.0, node_ttl=60.0, max_hops=8, clock=time.monotonic,
+                 labels_path=None):
         self.node = node
         self.device_ttl = device_ttl
         self.node_ttl = node_ttl
@@ -46,7 +114,12 @@ class Registry:
         self._remote = {}
         self._links = {}
         self._labels = {}
+        self._commands = {}  # id -> command issued here, with "_at"
+        self._results = {}   # id -> result of a command run here, with "_at"
         self._seq = 0
+        self.labels_path = labels_path
+        if labels_path:
+            self.load_labels(_read_labels(labels_path))
 
     # -- local observations -------------------------------------------------
 
@@ -62,6 +135,12 @@ class Registry:
     def set_label(self, address, label, ts=None):
         with self._lock:
             self._labels[address] = [(label or "").strip()[:64], ts if ts is not None else time.time()]
+            labels = dict(self._labels)
+        if self.labels_path:
+            tmp = self.labels_path + ".tmp"
+            with open(tmp, "w") as fh:
+                json.dump(labels, fh)
+            os.replace(tmp, self.labels_path)
 
     def load_labels(self, labels):
         with self._lock:
@@ -79,6 +158,10 @@ class Registry:
             del self._remote[node_id]
         for node_id in [n for n, l in self._links.items() if now - l["_seen"] > self.node_ttl]:
             del self._links[node_id]
+        for cid in [c for c, v in self._commands.items() if now - v["_at"] > COMMAND_TTL]:
+            del self._commands[cid]
+        for cid in [c for c, v in self._results.items() if now - v["_at"] > RESULT_TTL]:
+            del self._results[cid]
 
     @staticmethod
     def _age(state, now):
@@ -92,19 +175,57 @@ class Registry:
             devices.append(out)
         return {
             "id": self.node["id"], "name": self.node["name"], "http": self.node.get("http"),
-            "seq": self._seq, "age": 0.0, "hops": 0, "devices": devices,
+            "role": self.node.get("role", "edge"), "seq": self._seq, "age": 0.0, "hops": 0, "devices": devices,
             "labels": {a: list(v) for a, v in self._labels.items()},
+            "commands": [dict({k: v for k, v in c.items() if k != "_at"}, age=round(now - c["_at"], 1))
+                         for c in self._commands.values()],
+            "results": {cid: {"status": r["status"], "error": r["error"], "age": round(now - r["_at"], 1)}
+                        for cid, r in self._results.items()},
         }
 
     def _remote_states(self, now):
         for state in self._remote.values():
             elapsed = now - state["_received"]
             yield {
-                "id": state["id"], "name": state["name"], "http": state["http"],
+                "id": state["id"], "name": state["name"], "http": state["http"], "role": state["role"],
                 "seq": state["seq"], "age": round(state["age"] + elapsed, 1), "hops": state["hops"],
                 "devices": [dict(d, age=round(d["age"] + elapsed, 1)) for d in state["devices"]],
                 "labels": state["labels"],
+                "commands": [dict(c, age=round(c["age"] + elapsed, 1)) for c in state["commands"]],
+                "results": {cid: dict(r, age=round(r["age"] + elapsed, 1)) for cid, r in state["results"].items()},
             }
+
+    # -- device actions -----------------------------------------------------
+
+    def issue(self, node_id, address, action):
+        """Ask node_id to run action on address; returns the command id."""
+        cid = secrets.token_hex(6)
+        with self._lock:
+            self._commands[cid] = {"id": cid, "node": node_id, "address": address,
+                                   "action": action, "_at": self._clock()}
+        return cid
+
+    def pending(self):
+        """Commands addressed to this node, from any node (us included), not handled yet."""
+        now = self._clock()
+        me = self.node["id"]
+        with self._lock:
+            self._prune(now)
+            states = [self._local_state(now)] + list(self._remote_states(now))
+            return [c for s in states for c in s["commands"]
+                    if c["node"] == me and c["age"] < COMMAND_TTL and c["id"] not in self._results]
+
+    def set_result(self, cid, status, error=None):
+        with self._lock:
+            self._results[cid] = {"status": status, "error": error, "_at": self._clock()}
+
+    def result(self, cid):
+        """Freshest known result of a command anywhere in the mesh, or None."""
+        now = self._clock()
+        with self._lock:
+            states = [self._local_state(now)] + list(self._remote_states(now))
+        found = [s["results"][cid] for s in states if cid in s["results"]]
+        return min(found, key=lambda r: r["age"]) if found else None
 
     # -- mesh exchange ------------------------------------------------------
 
@@ -140,11 +261,14 @@ class Registry:
                                             or (seq == current["seq"] and hops >= current["hops"])):
                     continue
                 http = state.get("http")
+                role = state.get("role") if state.get("role") in ("edge", "control") else "edge"
                 self._remote[node_id] = {
                     "id": node_id, "name": str(state.get("name") or node_id)[:64],
-                    "http": http if isinstance(http, int) else None,
+                    "http": http if isinstance(http, int) else None, "role": role,
                     "seq": seq, "age": age, "hops": hops, "devices": devices, "_received": now,
                     "labels": _clean_labels(state.get("labels")),
+                    "commands": _clean_commands(state.get("commands")),
+                    "results": _clean_results(state.get("results")),
                 }
                 accepted += 1
         return accepted
@@ -172,7 +296,7 @@ class Registry:
         for state in states:
             beacon = beacons.get(state["id"])
             nodes.append({
-                "id": state["id"], "name": state["name"], "self": state is local,
+                "id": state["id"], "name": state["name"], "self": state is local, "role": state["role"],
                 "hops": state["hops"], "age": state["age"], "devices": 0,
                 "link": links.get(state["id"]),
                 "bt": {"rssi": beacon.get("rssi"), "age": beacon["age"]} if beacon else None,

@@ -5,12 +5,14 @@
     "backend": "bluez",
     "adapter": null,
     "device_ttl": 60,
-    "advertise": true
+    "advertise": true,
+    "keep_connected": []
   },
   "mesh": {
-    "key": "change-me",
+    "owner": "ssh-ed25519 AAAA... (owner's SSH public key)",
+    "credential": "btedge1:... (from: python3 -m btedge credential)",
     "gossip_interval": 5,
     "lan": {"enabled": true, "group": "239.255.66.77", "port": 47474, "interface": null},
-    "peers": []
+    "peers": ["https://btedge.yafb.net"]
   }
 }

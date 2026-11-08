@@ -20,8 +20,10 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 from cryptography.exceptions import InvalidSignature
@@ -81,16 +83,29 @@ def node_id_of(public_raw):
     return hashlib.sha256(b"btedge-node\0" + public_raw).hexdigest()[:16]
 
 
-def machine_fingerprint():
+def _machine_id():
     for path in MACHINE_ID_PATHS:
         try:
             with open(path) as fh:
                 mid = fh.read().strip()
             if mid:
-                return hashlib.sha256(b"btedge-machine\0" + mid.encode()).hexdigest()[:16]
+                return mid
         except OSError:
             continue
-    return "-"
+    if sys.platform == "darwin":  # macOS has no machine-id: use the hardware UUID
+        try:
+            out = subprocess.run(["/usr/sbin/ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
+                                 check=True, stdout=subprocess.PIPE).stdout.decode()
+        except (OSError, subprocess.CalledProcessError):
+            return None
+        found = re.search(r'"IOPlatformUUID" = "([^"]+)"', out)
+        return found.group(1) if found else None
+    return None
+
+
+def machine_fingerprint():
+    mid = _machine_id()
+    return hashlib.sha256(b"btedge-machine\0" + mid.encode()).hexdigest()[:16] if mid else "-"
 
 
 def cert_message(node_id, public_b64, machine):

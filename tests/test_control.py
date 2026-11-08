@@ -1,10 +1,13 @@
 import base64
+import json
+import os
 import tempfile
 import unittest
 import urllib.error
 import urllib.request
 
 from btedge import config, trust
+from btedge.auth import Login, LoginError
 from btedge.registry import Registry
 
 from meshkit import owner
@@ -60,11 +63,57 @@ class AuthTest(unittest.TestCase):
         except urllib.error.HTTPError as exc:
             return exc.code
 
+    def change(self, current, new, login="pw"):
+        body = json.dumps({"current": current, "new": new}).encode()
+        req = urllib.request.Request(self.base + "/api/password", data=body, method="POST")
+        req.add_header("Authorization", "Basic " + base64.b64encode(b"admin:" + login.encode()).decode())
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return resp.status
+        except urllib.error.HTTPError as exc:
+            return exc.code
+
     def test_panel_requires_login_but_health_does_not(self):
         self.assertEqual(self.get("/api/health"), 200)
         self.assertEqual(self.get("/api/state"), 401)
         self.assertEqual(self.get("/api/state", "wrong"), 401)
         self.assertEqual(self.get("/api/state", "pw"), 200)
+
+    def test_change_password_requires_the_current_one(self):
+        self.assertEqual(self.change("wrong", "new-password"), 403)
+        self.assertEqual(self.change("pw", "short"), 400)
+        self.assertEqual(self.get("/api/state", "pw"), 200)
+        self.assertEqual(self.change("pw", "new-password"), 200)
+        self.assertEqual(self.get("/api/state", "pw"), 401)
+        self.assertEqual(self.get("/api/state", "new-password"), 200)
+
+
+class LoginTest(unittest.TestCase):
+    def test_changed_password_survives_a_restart_and_beats_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "admin_password.hash")
+            Login("admin", "from-env", path).change("from-env", "from-panel")
+            with open(path) as fh:
+                self.assertNotIn("from-panel", fh.read())
+            self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+            again = Login("admin", "from-env", path)
+            self.assertTrue(again.check("from-panel"))
+            self.assertTrue(again.check("from-panel"))  # second time from the fast path
+            self.assertFalse(again.check("from-env"))
+
+    def test_corrupt_file_falls_back_to_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "admin_password.hash")
+            with open(path, "w") as fh:
+                fh.write("garbage")
+            self.assertTrue(Login("admin", "from-env", path).check("from-env"))
+
+    def test_node_without_login_has_nothing_to_change(self):
+        login = Login("admin", None)
+        self.assertTrue(login.authorized(None))
+        with self.assertRaises(LoginError) as caught:
+            login.change("x", "new-password")
+        self.assertEqual(caught.exception.status, 409)
 
 
 if __name__ == "__main__":

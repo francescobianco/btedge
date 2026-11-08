@@ -62,6 +62,7 @@ def main(argv=None):
     dispatcher = Dispatcher(registry, backend, profiler, on_result=mesh.kick) if backend else None
     panel = Panel(registry, mesh, backend, cfg["http"]["host"], cfg["http"]["port"], profiler=profiler,
                   admin_password=cfg["admin"]["password"], admin_user=cfg["admin"]["user"],
+                  password_file=os.path.join(cfg["state_dir"], "admin_password.hash"),
                   join={"url": cfg["public_url"], "owner": cfg["mesh"]["owner"]} if cfg["role"] == "control" else None)
 
     if backend:
@@ -70,8 +71,8 @@ def main(argv=None):
     mesh.start()
     panel.start()
     if cfg["role"] == "control":
-        log.info("control node: panel user %r, password from config/env or %s/admin_password",
-                 cfg["admin"]["user"], cfg["state_dir"])
+        log.info("control node: panel user %r, password changed from the panel, else from config/env "
+                 "or %s/admin_password", cfg["admin"]["user"], cfg["state_dir"])
     log.info("%s node %s (%s) panel on http://%s:%d", cfg["role"], node["name"], node["id"],
              cfg["http"]["host"], panel.port)
 

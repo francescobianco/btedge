@@ -22,6 +22,8 @@ button { font: inherit; color: inherit; }
 /* sidebar */
 aside { background: var(--side); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
 .brand { display: flex; align-items: center; gap: 9px; padding: 14px 16px 10px; font-weight: 600; font-size: 14px; }
+.brand .x { margin-left: auto; font-size: 15px; }
+.brand .x[hidden] { display: none; }
 .logo { width: 20px; height: 20px; border-radius: 6px; background: var(--accent); display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; }
 .self { padding: 0 16px 12px; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .group { padding: 14px 16px 4px; color: var(--faint); font-size: 11px; font-weight: 500; }
@@ -87,6 +89,12 @@ main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .rename input { flex: 1; min-width: 0; border: 1px solid var(--line2); border-radius: 7px; padding: 6px 10px; font: inherit; outline: none; }
 .rename input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #5e6ad21f; }
 .btn { border: 0; border-radius: 7px; padding: 6px 12px; background: var(--accent); color: #fff; cursor: pointer; }
+.btn:disabled { opacity: .55; cursor: default; }
+.pw { display: grid; gap: 10px; justify-items: start; }
+.pw label { display: block; width: 100%; color: var(--faint); font-size: 12px; }
+.pw input { display: block; width: 100%; margin-top: 5px; border: 1px solid var(--line2); border-radius: 7px; padding: 6px 10px; font: inherit; color: var(--text); outline: none; }
+.pw input[hidden] { display: none; }
+.pw input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #5e6ad21f; }
 .props { display: grid; grid-template-columns: 110px 1fr; gap: 7px 12px; margin: 0; }
 .props dt { color: var(--faint); } .props dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .seen div { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
@@ -121,7 +129,7 @@ pre { margin: 0; padding: 12px; background: var(--side); border: 1px solid var(-
 <body>
 <div class="app">
   <aside>
-    <div class="brand"><span class="logo">bt</span>btedge</div>
+    <div class="brand"><span class="logo">bt</span>btedge<button class="x" id="settings" data-settings title="Impostazioni" aria-label="Impostazioni" hidden>⚙</button></div>
     <div class="self" id="self">…</div>
     <div class="group">Nodi</div>
     <div class="items" id="nodes"></div>
@@ -201,6 +209,7 @@ function visible() {
 function renderSide() {
   const st = ui.st;
   $("self").textContent = `${st.node.name} · ${st.node.role === "control" ? "controllo" : "edge"}`;
+  $("settings").hidden = !st.user;
   const items = [`<button class="item${ui.node ? "" : " on"}" data-node=""><span class="dot ok"></span><span class="label">Tutta la mesh</span><span class="count">${st.devices.length}</span></button>`];
   for (const n of st.nodes) {
     const state = n.self || n.age < 20 ? "ok" : "warn";
@@ -246,6 +255,23 @@ function renderList() {
 
 function renderDetail() {
   const box = $("detail"), inner = $("detail-in");
+  if (ui.panel === "settings" && ui.st.user) {
+    box.classList.add("open");
+    if ($("pw")) return;  // the 3 s refresh must not wipe what is being typed
+    inner.innerHTML = `<header><h2>Impostazioni</h2><button class="x" data-close>×</button></header>
+      <div class="field"><label>Utente</label>${esc(ui.st.user)}</div>
+      <div class="field"><label>Cambia password</label>
+        <form class="pw" id="pw">
+          <input type="text" name="username" autocomplete="username" value="${esc(ui.st.user)}" hidden>
+          <label>Password attuale<input id="pw-current" type="password" autocomplete="current-password" required></label>
+          <label>Nuova password<input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label>
+          <label>Ripeti la nuova password<input id="pw-again" type="password" autocomplete="new-password" minlength="8" required></label>
+          <button class="btn" id="pw-save">Cambia password</button>
+          <span class="act-state" id="pw-state"></span>
+        </form></div>
+      <p class="note">Vale solo per questo nodo e resta valida anche dopo un nuovo deploy. Dopo il cambio il browser chiederà di accedere con la nuova password.</p>`;
+    return;
+  }
   if (ui.panel === "join" && ui.st.join) {
     box.classList.add("open");
     const url = ui.st.join.url || location.origin;
@@ -258,7 +284,7 @@ function renderDetail() {
     return;
   }
   const d = ui.sel && ui.st.devices.find(x => x.address === ui.sel);
-  if (!d) { box.classList.remove("open"); return; }
+  if (!d) { box.classList.remove("open"); inner.innerHTML = ""; return; }
   box.classList.add("open");
   const focused = document.activeElement && document.activeElement.id === "label";
   const draft = focused ? $("label").value : null;
@@ -314,6 +340,28 @@ async function runAction(address, action) {
   }
 }
 
+async function changePassword() {
+  const state = (text, cls) => { $("pw-state").textContent = text; $("pw-state").className = "act-state " + cls; };
+  const current = $("pw-current").value, next = $("pw-new").value;
+  if (next !== $("pw-again").value) return state("Le due password non coincidono", "error");
+  $("pw-save").disabled = true;
+  state("Salvataggio…", "");
+  try {
+    const r = await fetch("/api/password", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({current, new: next})});
+    if (r.ok) {
+      clearInterval(ui.timer);
+      state("Password cambiata. Accedi di nuovo…", "ok");
+      setTimeout(() => location.reload(), 1500);
+      return;
+    }
+    state((await r.json()).error || "Errore", "error");
+  } catch (e) {
+    state("Rete non disponibile", "error");
+  }
+  $("pw-save").disabled = false;
+}
+
 async function refresh() {
   try {
     const r = await fetch("/api/state", {cache: "no-store"});
@@ -326,7 +374,7 @@ async function refresh() {
 }
 
 document.addEventListener("click", e => {
-  const t = e.target.closest("[data-node],[data-dev],[data-f],[data-close],[data-join],[data-act]");
+  const t = e.target.closest("[data-node],[data-dev],[data-f],[data-close],[data-join],[data-act],[data-settings]");
   if (!t) return;
   if (t.dataset.act) { runAction(ui.sel, t.dataset.act); return; }
   if (t.dataset.node !== undefined) ui.node = t.dataset.node || null;
@@ -334,9 +382,11 @@ document.addEventListener("click", e => {
   else if (t.dataset.f) { ui.filter = t.dataset.f; for (const b of $("seg").children) b.classList.toggle("on", b === t); }
   else if (t.dataset.close !== undefined) { ui.sel = null; ui.panel = null; }
   else if (t.dataset.join !== undefined) { ui.panel = "join"; ui.sel = null; }
+  else if (t.dataset.settings !== undefined) { ui.panel = "settings"; ui.sel = null; }
   render();
 });
 document.addEventListener("submit", async e => {
+  if (e.target.id === "pw") { e.preventDefault(); changePassword(); return; }
   if (e.target.id !== "rename") return;
   e.preventDefault();
   const label = $("label").value;
@@ -351,7 +401,7 @@ document.addEventListener("keydown", e => {
 });
 $("q").addEventListener("input", renderList);
 refresh();
-setInterval(refresh, 3000);
+ui.timer = setInterval(refresh, 3000);
 </script>
 </body>
 </html>

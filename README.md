@@ -134,7 +134,10 @@ python3 -m btedge enroll root@82.165.241.56 --state-dir /var/lib/btedge-control
 ```
 
 Username e password del pannello vengono chiesti al primo deploy e conservati sul
-server (`--ask all` per cambiarli). In container la config arriva da variabili
+server (`--ask all` per cambiarli). La password si può cambiare anche dalle impostazioni
+del pannello (⚙): viene salvata con hash in `<state_dir>/admin_password.hash` e da quel
+momento ha la precedenza su config e variabili d'ambiente, anche dopo un nuovo deploy.
+Se la si dimentica, cancellando quel file torna valida la password della config. In container la config arriva da variabili
 d'ambiente: `BTEDGE_ROLE`, `BTEDGE_NODE_NAME`, `BTEDGE_PUBLIC_URL`, `BTEDGE_MESH_OWNER`,
 `BTEDGE_PEERS` (separati da virgola), `BTEDGE_LAN`, `BTEDGE_ADMIN_USER`,
 `BTEDGE_ADMIN_PASSWORD`, `BTEDGE_PORT`, `BTEDGE_STATE_DIR`.
@@ -157,6 +160,7 @@ SSH di prova e una `mesh.lan.port` diversa. Due istanze `--fake` sulla stessa LA
 | GET | `/` | pannello web |
 | GET | `/api/state` | nodi, dispositivi aggregati, stato scanner e mesh |
 | POST | `/api/label` | `{"address", "label"}`: nome condiviso nella mesh |
+| POST | `/api/password` | `{"current", "new"}`: cambia la password del pannello |
 | POST | `/api/action` | `{"address", "action"}`: esegue un'azione dell'adapter; risponde `{"id", "node"}` |
 | GET | `/api/action?id=…` | esito: `pending`, `running`, `ok` o `error` |
 | GET | `/api/health` | `{"ok": true}` |

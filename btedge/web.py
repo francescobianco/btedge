@@ -1,6 +1,4 @@
 """HTTP server: the panel, its JSON API and the mesh sync endpoint."""
-import base64
-import hmac
 import json
 import logging
 import os
@@ -10,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from . import __version__, protocol
+from .auth import Login, LoginError
 
 log = logging.getLogger(__name__)
 
@@ -19,11 +18,10 @@ MAX_BODY = 64 * 1024
 
 class Panel:
     def __init__(self, registry, mesh, backend, host="0.0.0.0", port=4646,
-                 admin_password=None, join=None, admin_user="admin", profiler=None):
+                 admin_password=None, join=None, admin_user="admin", profiler=None, password_file=None):
         self.registry = registry
         self.profiler = profiler
-        self.admin_user = admin_user or "admin"
-        self.admin_password = admin_password or None
+        self.login = Login(admin_user, admin_password, password_file)
         self.join = join
         self.mesh = mesh
         self.backend = backend
@@ -47,7 +45,8 @@ class Panel:
                 dev["profile"] = self.profiler.profile(dev)
         view.update(version=__version__, time=time.time(),
                     scanner=dict(self.backend.status) if self.backend else None,
-                    mesh=self.mesh.status() if self.mesh else None, join=self.join)
+                    mesh=self.mesh.status() if self.mesh else None, join=self.join,
+                    user=self.login.user if self.login.required else None)
         return view
 
     def act(self, address, action):
@@ -62,18 +61,6 @@ class Panel:
         # connected first (no need to connect), then the strongest signal
         best = sorted(dev["seen_by"], key=lambda s: (not s["connected"], s["age"] > 30, -(s["rssi"] or -999)))[0]
         return {"id": self.registry.issue(best["node"], address, action), "node": best["node"], "name": best["name"]}
-
-    def authorized(self, header):
-        if not self.admin_password:
-            return True
-        if not header or not header.startswith("Basic "):
-            return False
-        try:
-            user, _, password = base64.b64decode(header[6:]).decode().partition(":")
-        except (ValueError, UnicodeDecodeError):
-            return False
-        return hmac.compare_digest(user.encode(), self.admin_user.encode()) & hmac.compare_digest(
-            password.encode(), self.admin_password.encode())
 
     def _handler(self):
         panel = self
@@ -106,7 +93,7 @@ class Panel:
 
             def _authorized(self):
                 """Everything except health and the (HMAC-signed) mesh sync needs the admin login."""
-                if panel.authorized(self.headers.get("Authorization")):
+                if panel.login.authorized(self.headers.get("Authorization")):
                     return True
                 body = b"authentication required"
                 self.send_response(401)
@@ -146,6 +133,20 @@ class Panel:
                         self._json({"error": str(exc)}, 409)
                     except (KeyError, TypeError, ValueError) as exc:
                         self._json({"error": str(exc)}, 400)
+                    return
+                if self.path == "/api/password":
+                    try:
+                        data = self._body()
+                        panel.login.change(data["current"], data["new"])
+                    except LoginError as exc:
+                        self._json({"error": exc.message}, exc.status)
+                    except (KeyError, TypeError, ValueError) as exc:
+                        self._json({"error": str(exc)}, 400)
+                    except OSError:
+                        log.exception("cannot save the panel password")
+                        self._json({"error": "Impossibile salvare la password sul nodo"}, 500)
+                    else:
+                        self._json({"ok": True})
                     return
                 if self.path == "/api/label":
                     try:

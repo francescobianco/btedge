@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>net.yafb.btedge.bluetooth</string>
+  <key>CFBundleName</key><string>BtedgeBluetooth</string>
+  <key>CFBundleExecutable</key><string>BtedgeBluetooth</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>LSBackgroundOnly</key><true/>
+  <key>NSBluetoothAlwaysUsageDescription</key><string>btedge rileva i dispositivi Bluetooth nelle vicinanze per la mesh.</string>
+  <key>NSLocalNetworkUsageDescription</key><string>btedge parla con gli altri nodi della mesh sulla rete locale.</string>
+</dict>
+</plist>

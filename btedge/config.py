@@ -23,7 +23,7 @@ DEFAULTS = {
     "state_dir": "/var/lib/btedge",
     "http": {"host": "0.0.0.0", "port": 4646},
     "scanner": {
-        "backend": "bluez",   # "bluez", "fake" or "none" (no Bluetooth)
+        "backend": "bluez",   # "bluez", "corebluetooth" (macOS), "fake" or "none" (no Bluetooth)
         "adapter": None,      # e.g. "hci0"; None picks the first adapter
         "device_ttl": 60,     # seconds a device stays listed after its last advert
         "cache_ttl": 300,     # seconds before unpaired devices are dropped from BlueZ

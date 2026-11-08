@@ -10,6 +10,7 @@ from . import config, trust
 from .actions import Dispatcher
 from .profiler import Profiler
 from .bluez import BluezBackend, FakeBackend
+from .corebluetooth import CoreBluetoothBackend
 from .mesh import Mesh
 from .registry import Registry
 from .web import Panel
@@ -52,6 +53,8 @@ def main(argv=None):
         backend = None
     elif scanner["backend"] == "fake":
         backend = FakeBackend(registry, room=scanner["fake_room"], rooms=scanner["fake_rooms"])
+    elif scanner["backend"] == "corebluetooth":
+        backend = CoreBluetoothBackend(registry)
     else:
         backend = BluezBackend(registry, node["id"], adapter=scanner["adapter"],
                                advertise=scanner["advertise"], cache_ttl=scanner["cache_ttl"],

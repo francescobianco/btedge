@@ -142,6 +142,18 @@ d'ambiente: `BTEDGE_ROLE`, `BTEDGE_NODE_NAME`, `BTEDGE_PUBLIC_URL`, `BTEDGE_MESH
 `BTEDGE_PEERS` (separati da virgola), `BTEDGE_LAN`, `BTEDGE_ADMIN_USER`,
 `BTEDGE_ADMIN_PASSWORD`, `BTEDGE_PORT`, `BTEDGE_STATE_DIR`.
 
+## macOS
+
+Con `deploy/install-macos.sh` btedge gira come LaunchAgent dell'utente (niente sudo, serve
+Xcode Command Line Tools), con `"scanner": {"backend": "corebluetooth"}` nella config
+`~/.btedge/config.json`. macOS chiede il permesso Bluetooth al primo avvio, una sola volta.
+La scansione la fa `BtedgeBluetooth.app` (`deploy/macos/`), un piccolo helper firmato che
+avvia btedge: il Python di sistema non può dichiarare il permesso.
+
+Limiti rispetto a BlueZ: CoreBluetooth non espone i MAC, quindi un dispositivo ha un UUID
+valido solo su quel Mac e, se lo sente anche un nodo Linux, nella mesh compare due volte.
+Le azioni sui dispositivi e il beacon BLE non sono supportati.
+
 ## Sviluppo
 
 ```sh

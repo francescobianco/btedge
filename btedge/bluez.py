@@ -71,7 +71,6 @@ class Radio:
         self.name = path.rsplit("/", 1)[-1]
         self.address = address
         self.adv_supported = adv_supported
-        self.adv = None
         self.advertising = False
         self.adv_pending = False
         self.discovery_started = 0.0
@@ -98,6 +97,7 @@ class BluezBackend:
                        "advertising": False, "beacon_error": None, "error": None}
         self._radios = {}       # adapter object path -> Radio
         self._stale = True      # adapters came or went: look at BlueZ's objects again
+        self._advs = {}         # radio name -> beacon object: exported on D-Bus once, for good
         self._props = {}        # device object path -> Device1 properties
         self._seen = {}
         self.keep_connected = [a.upper() for a in keep_connected or []]
@@ -202,6 +202,9 @@ class BluezBackend:
         except dbus.DBusException as exc:
             self._stale = True
             self._set(state="error", error=exc.get_dbus_message() or str(exc))
+        except Exception as exc:  # a bug here must not leave a stale status, nor stop the timer
+            log.exception("bluetooth supervision")
+            self._set(state="error", error="internal error: %s" % exc)
         return True
 
     def _adapters(self, objects):
@@ -382,12 +385,14 @@ class BluezBackend:
     # -- BLE beacon ---------------------------------------------------------
 
     def _register_advertisement(self, radio, adapter_obj):
-        if radio.adv is None:
-            def released():
-                radio.advertising = False
+        if radio.name not in self._advs:
+            def released(name=radio.name):  # the Radio object changes when the adapter is taken back
+                for known in self._radios.values():
+                    if known.name == name:
+                        known.advertising = False
 
-            radio.adv = _make_advertisement(self._dbus, self._bus, bytes.fromhex(self.node_id),
-                                            ADV_PATH + "_" + radio.name, released)
+            self._advs[radio.name] = _make_advertisement(self._dbus, self._bus, bytes.fromhex(self.node_id),
+                                                         ADV_PATH + "_" + radio.name, released)
         manager = self._dbus.Interface(adapter_obj, ADV_MANAGER)
         radio.adv_pending = True
 

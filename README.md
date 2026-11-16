@@ -268,6 +268,11 @@ d'ambiente: `BTEDGE_ROLE`, `BTEDGE_NODE_NAME`, `BTEDGE_PUBLIC_URL`, `BTEDGE_MESH
 Con `deploy/install-macos.sh` btedge gira come LaunchAgent dell'utente (niente sudo, serve
 Xcode Command Line Tools), con `"scanner": {"backend": "corebluetooth"}` nella config
 `~/.btedge/config.json`. macOS chiede il permesso Bluetooth al primo avvio, una sola volta.
+Se la richiesta è stata rifiutata o persa (il nodo non vede nessun dispositivo e il log dice
+"Bluetooth not allowed"), `deploy/macos/allow-bluetooth.sh` la fa ricomparire: azzera la
+risposta, riavvia il nodo, apre la pagina giusta delle impostazioni e aspetta finché il
+nodo scansiona. Il clic su "Consenti" resta tuo: macOS non lo lascia fare a uno script.
+Da un'altra macchina: `ssh utente@mac 'sh -s' < deploy/macos/allow-bluetooth.sh`.
 La scansione la fa `BtedgeBluetooth.app` (`deploy/macos/`), un piccolo helper firmato che
 avvia btedge: il Python di sistema non può dichiarare il permesso.
 

@@ -25,9 +25,17 @@ elif [ ! -f /etc/btedge/config.json ]; then
     echo "created /etc/btedge/config.json: set mesh.owner to the owner's SSH public key"
 fi
 
+# the `btedge` command: btedge bluetooth release, btedge enroll ...
+cat > /usr/local/bin/btedge <<'EOF'
+#!/bin/sh
+PYTHONPATH=/opt/btedge${PYTHONPATH:+:$PYTHONPATH} exec /usr/bin/python3 -m btedge "$@"
+EOF
+chmod 755 /usr/local/bin/btedge
+
 install -m 644 "$SRC/deploy/btedge.service" /etc/systemd/system/btedge.service
 systemctl daemon-reload
 systemctl enable btedge.service
 systemctl restart btedge.service
 echo "btedge running: http://$(hostname -I | awk '{print $1}'):4646"
-echo "admit it into the mesh from the owner's machine: python3 -m btedge enroll root@$(hostname)"
+echo "admit it into the mesh from the owner's machine: btedge enroll root@$(hostname)"
+echo "leave the Bluetooth adapter to this host, or take it back: sudo btedge bluetooth release|on|off"

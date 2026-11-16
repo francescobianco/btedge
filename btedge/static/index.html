@@ -4,14 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>btedge</title>
+<script>
+// before the first paint: the theme chosen here, else the system's
+const theme = {
+  get() { try { return localStorage.getItem("btedge-theme"); } catch (e) { return null; } },
+  current() { return this.get() || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"); },
+  apply() { document.documentElement.dataset.theme = this.current(); },
+  toggle() { const next = this.current() === "dark" ? "light" : "dark"; try { localStorage.setItem("btedge-theme", next); } catch (e) {} this.apply(); },
+};
+theme.apply();
+</script>
 <style>
 :root {
   --bg: #ffffff; --side: #fafafa; --hover: #f4f4f5; --sel: #eef2ff; --line: #ececee; --line2: #e2e2e6;
   --text: #18181b; --muted: #71717a; --faint: #a1a1aa;
   --accent: #5e6ad2; --ok: #22a06b; --warn: #d9a30a; --bad: #e5484d;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --on: #ececf0; --mine: #c7cbf3;
   color-scheme: light;
 }
+:root[data-theme="dark"] {
+  --bg: #111113; --side: #17171a; --hover: #212125; --sel: #23264a; --line: #26262b; --line2: #35353c;
+  --text: #ededf0; --muted: #a1a1aa; --faint: #74747e;
+  --accent: #8b94f2; --ok: #3dbb85; --warn: #e0b030; --bad: #f0626a;
+  --on: #2a2a30; --mine: #474c8f;
+  color-scheme: dark;
+}
+input, textarea { background: var(--bg); color: var(--text); }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); overflow: hidden;
@@ -31,7 +50,7 @@ aside { background: var(--side); border-right: 1px solid var(--line); display: f
 .item { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none; border-radius: 6px;
   padding: 5px 8px; cursor: pointer; text-align: left; color: var(--text); }
 .item:hover { background: var(--hover); }
-.item.on { background: #ececf0; }
+.item.on { background: var(--on); }
 .item .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .item .count { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: none; }
@@ -49,6 +68,7 @@ main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .seg { display: inline-flex; border: 1px solid var(--line2); border-radius: 7px; padding: 2px; gap: 2px; }
 .seg button { border: 0; background: none; border-radius: 5px; padding: 3px 10px; cursor: pointer; color: var(--muted); }
 .seg button.on { background: var(--hover); color: var(--text); }
+.seg button:disabled { cursor: default; }
 .search { margin-left: auto; width: 260px; max-width: 40vw; border: 1px solid var(--line2); border-radius: 7px; padding: 6px 10px;
   font: inherit; outline: none; background: var(--bg); }
 .search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #5e6ad21f; }
@@ -71,13 +91,39 @@ main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .bars i.f { background: var(--text); }
 .chips { display: flex; gap: 4px; overflow: hidden; }
 .chip { border: 1px solid var(--line2); border-radius: 999px; padding: 0 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
-.chip.me { border-color: #c7cbf3; color: var(--accent); }
+.chip.me { border-color: var(--mine); color: var(--accent); }
 .empty { padding: 80px 20px; text-align: center; color: var(--faint); }
 .av { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; flex: none; font-size: 11px; font-weight: 600; color: #fff; }
 
 /* detail */
 .detail { width: 0; overflow: hidden; border-left: 1px solid transparent; transition: width .18s ease; }
 .detail.open { width: 360px; border-left-color: var(--line); }
+.detail.open.wide { width: 540px; }
+.detail.wide .in { width: 540px; }
+.code { display: block; width: 100%; min-height: 300px; resize: vertical; border: 1px solid var(--line2); border-radius: 7px; padding: 10px;
+  font: 12px/1.55 var(--mono); color: var(--text); outline: none; tab-size: 2; white-space: pre; overflow: auto; }
+.code:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #5e6ad21f; }
+.check { display: flex !important; align-items: center; gap: 8px; color: var(--text) !important; font-size: 13px !important; cursor: pointer; margin: 0 !important; }
+.grid { border-collapse: collapse; width: 100%; }
+.grid th, .grid td { padding: 3px 4px; text-align: center; font-weight: 400; }
+.grid th:first-child { text-align: left; color: var(--muted); width: 44px; position: sticky; left: 0; background: var(--bg); }
+.grid td { min-width: 84px; }
+.grid input[type=time] { width: 100%; min-width: 0; max-width: 110px; border: 1px solid var(--line2); border-radius: 6px; padding: 3px 4px; font: 12px var(--mono); outline: none; }
+.grid input[type=time]:focus { border-color: var(--accent); }
+.grid input[type=checkbox] { width: 15px; height: 15px; margin: 0; vertical-align: middle; }
+.grid tr.we th { color: var(--faint); }
+.pw .check input { display: inline-block; width: auto; margin: 0; }
+.rowlist > * { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; }
+.rowlist button { cursor: pointer; border-radius: 6px; }
+.rowlist button:hover { background: var(--hover); }
+.rowlist .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.ghost { background: none; color: var(--text); border: 1px solid var(--line2); }
+.btn.danger { background: none; color: var(--bad); border: 1px solid var(--line2); margin-left: auto; }
+.hostlog { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.hostlog .mono { display: block; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+details.ref { margin-top: 14px; color: var(--muted); font-size: 12px; }
+details.ref summary { cursor: pointer; color: var(--accent); }
+details.ref pre { margin-top: 8px; }
 .detail .in { width: 360px; height: 100vh; overflow-y: auto; padding: 16px 20px 24px; }
 .detail header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
 .detail h2 { margin: 0; font-size: 15px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -129,10 +175,12 @@ pre { margin: 0; padding: 12px; background: var(--side); border: 1px solid var(-
 <body>
 <div class="app">
   <aside>
-    <div class="brand"><span class="logo">bt</span>btedge<button class="x" id="settings" data-settings title="Impostazioni" aria-label="Impostazioni" hidden>⚙</button></div>
+    <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/></svg></span>btedge</div>
     <div class="self" id="self">…</div>
     <div class="group">Nodi</div>
     <div class="items" id="nodes"></div>
+    <div class="group">Gestione</div>
+    <div class="items" id="nav" style="flex:none"></div>
     <div class="foot" id="foot"></div>
   </aside>
 
@@ -144,6 +192,7 @@ pre { margin: 0; padding: 12px; background: var(--side); border: 1px solid var(-
         <button data-f="named">Con nome</button>
         <button data-f="connected">Connessi</button>
       </div>
+      <span class="actions" id="bt"></span>
       <input class="search" id="q" type="search" placeholder="Cerca nome, indirizzo, produttore…">
     </div>
     <div class="list">
@@ -164,7 +213,8 @@ const VIA = {lan: "LAN", ip: "IP"};
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const ui = {st: null, filter: "all", node: null, sel: null, panel: null, acts: {}};
+const ui = {st: null, filter: "all", node: null, sel: null, panel: null, snip: null, acts: {}, bt: {}};
+const BUSY = ["sending", "pending", "running"];
 
 function ago(s) {
   if (s == null) return "–";
@@ -209,35 +259,63 @@ function visible() {
 function renderSide() {
   const st = ui.st;
   $("self").textContent = `${st.node.name} · ${st.node.role === "control" ? "controllo" : "edge"}`;
-  $("settings").hidden = !st.user;
   const items = [`<button class="item${ui.node ? "" : " on"}" data-node=""><span class="dot ok"></span><span class="label">Tutta la mesh</span><span class="count">${st.devices.length}</span></button>`];
   for (const n of st.nodes) {
-    const state = n.self || n.age < 20 ? "ok" : "warn";
-    const sub = n.role === "control" ? " · controllo" : n.self ? " · questo" : "";
-    const tip = n.id + (n.link ? " · " + (VIA[n.link.via] || n.link.via) + " " + (n.link.addr || "") : "");
+    const trouble = btTrouble(n);
+    const state = trouble ? "bad" : (n.self || n.age < 20) && (n.bluetooth || "on") === "on" ? "ok" : "warn";
+    const sub = (n.role === "control" ? " · controllo" : n.self ? " · questo" : "") + (n.bluetooth === "released" ? " · BT rilasciato" : n.bluetooth === "off" ? " · BT spento" : trouble ? " · BT in errore" : "");
+    const tip = n.id + (trouble ? " · " + trouble : "") + (n.radios && n.radios.length ? " · radio " + n.radios.map(r => r.name).join(", ") : "") + (n.link ? " · " + (VIA[n.link.via] || n.link.via) + " " + (n.link.addr || "") : "");
     items.push(`<button class="item${ui.node === n.id ? " on" : ""}" data-node="${esc(n.id)}" title="${esc(tip)}">
       <span class="dot ${state}"></span><span class="label">${esc(n.name)}<span style="color:var(--faint)">${sub}</span></span><span class="count">${n.role === "control" ? "" : n.devices}</span></button>`);
   }
   $("nodes").innerHTML = items.join("");
+  const broken = st.snippets.filter(s => s.hosts.some(h => h.error)).length;
+  const nav = [["snippets", "Automazione", broken ? "warn" : "ok", st.snippets.length || ""]];
+  if (st.join) nav.push(["join", "Collega un nodo edge", "", ""]);
+  if (st.user) nav.push(["settings", "Impostazioni", "", ""]);
+  $("nav").innerHTML = nav.map(([id, label, dot, count]) => `<button class="item${ui.panel === id ? " on" : ""}" data-nav="${id}">
+    <span class="dot ${dot}"></span><span class="label">${label}</span><span class="count">${count}</span></button>`).join("") + `<button class="item" data-theme-toggle><span class="dot"></span><span class="label">${theme.current() === "dark" ? "Tema chiaro" : "Tema scuro"}</span></button>`;
 
   const f = [], sc = st.scanner, m = st.mesh || {};
   const row = (state, text) => f.push(`<div class="row"><span class="dot ${state}"></span><span>${esc(text)}</span></div>`);
   if (!sc) row("ok", "Senza Bluetooth");
-  else row(sc.state === "scanning" ? "ok" : sc.state === "starting" ? "warn" : "bad",
-    sc.state === "scanning" ? `Scansione · ${sc.adapter}` : sc.state === "no_adapter" ? "Nessun adattatore BT" : sc.error || "Bluetooth non attivo");
+  else row(sc.state === "scanning" ? "ok" : ["starting", "paused", "off"].includes(sc.state) ? "warn" : "bad",
+    sc.state === "scanning" ? `Scansione · ${sc.adapter}` : sc.state === "paused" ? "Bluetooth rilasciato all'host" : sc.state === "off" ? "Radio Bluetooth spenta" : sc.state === "no_adapter" ? "Nessun adattatore BT" : sc.error || "Bluetooth non attivo");
   if (m.lan && m.lan.enabled) row(m.lan.error ? "bad" : "ok", "LAN " + m.lan.group);
   for (const p of m.peers || []) row(p.ok ? "ok" : p.ok === false ? "bad" : "warn", p.url.replace(/^https?:\/\//, ""));
   if (m.owner) row(m.enrolled ? "ok" : "bad", (m.enrolled ? "Mesh " : "Non accreditato · ") + m.owner.slice(7, 19) + "…");
-  if (st.join) f.push(`<button class="link" data-join>Collega un nodo edge</button>`);
   f.push(`<div class="row" style="color:var(--faint)"><span>btedge ${esc(st.version)}</span></div>`);
   $("foot").innerHTML = f.join("");
 }
 
+// With a node selected: the switch that makes it release its Bluetooth adapter, or take it back.
+// Why a node's Bluetooth is not scanning (as the node itself reports), or "".
+function btTrouble(n) {
+  const radios = n.radios || [];
+  if (!radios.length || radios.some(r => r.state === "scanning") || (n.bluetooth || "on") !== "on") return "";
+  const bad = radios.find(r => r.error) || radios.find(r => r.state === "no_adapter" || r.state === "error");
+  return bad ? (bad.error || "nessun adattatore Bluetooth") : "";
+}
+function selectedNode() { return ui.node && ui.st.nodes.find(n => n.id === ui.node); }
+const BT = {on: ["Attivo", "btedge usa il Bluetooth: scansione, beacon, riconnessioni"],
+  released: ["Rilasciato", "btedge non tocca il Bluetooth: la radio resta accesa, a disposizione dell'host (sviluppo, altri applicativi)"],
+  off: ["Spento", "La radio Bluetooth dell'host viene spenta"]};
+function renderBt() {
+  const n = selectedNode();
+  if (!n || n.bluetooth == null) { $("bt").innerHTML = ""; return; }
+  const s = ui.bt[n.id], busy = s && BUSY.includes(s.status);
+  const text = !s ? "" : busy ? "Invio al nodo…" : s.status === "error" ? esc(s.error || "Errore") : "";
+  const radios = (n.radios || []).map(r => r.name).join(", ");
+  $("bt").innerHTML = `<span style="color:var(--faint)" title="${esc(radios ? "Radio: " + radios : "")}">Bluetooth${n.radios && n.radios.length > 1 ? " · " + n.radios.length + " radio" : ""}</span><span class="seg">${Object.entries(BT).map(([mode, [label, tip]]) =>
+    `<button data-bt="${mode}" class="${n.bluetooth === mode ? "on" : ""}" title="${esc(tip)}"${busy || n.bluetooth === mode ? " disabled" : ""}>${label}</button>`).join("")}</span>
+    <span class="act-state ${s ? esc(s.status) : ""}">${text}</span>`;
+}
+
 function renderList() {
-  const rows = visible(), me = ui.st.node.id;
+  const rows = visible(), me = ui.st.node.id, node = selectedNode();
   $("count").textContent = rows.length;
   if (!rows.length) {
-    $("devices").innerHTML = `<div class="empty">${ui.st.devices.length ? "Nessun dispositivo corrisponde." : "Nessun dispositivo rilevato per ora."}</div>`;
+    $("devices").innerHTML = `<div class="empty">${node && btTrouble(node) ? "Il Bluetooth di questo nodo non sta scansionando: " + esc(btTrouble(node)) : node && node.bluetooth === "released" ? "Bluetooth rilasciato: su questo nodo è a disposizione dell'host." : node && node.bluetooth === "off" ? "Radio Bluetooth spenta su questo nodo." : ui.st.devices.length ? "Nessun dispositivo corrisponde." : "Nessun dispositivo rilevato per ora."}</div>`;
     return;
   }
   $("devices").innerHTML = rows.map(d => {
@@ -245,7 +323,7 @@ function renderList() {
     const t = title(d), k = kind(d);
     return `<div class="dev${d.age > 30 ? " stale" : ""}${ui.sel === d.address ? " on" : ""}" data-dev="${esc(d.address)}">
       <div class="name">${avatar(d)}<div class="t"><b class="${t ? "" : "unk"}">${esc(t || "Senza nome")}</b><span class="mono">${esc(d.address)}</span></div></div>
-      <div class="ellip">${k ? esc(k) : '<span style="color:var(--faint)">–</span>'}${isConnected(d) ? ' · <span style="color:var(--ok)">connesso</span>' : ""}</div>
+      <div class="ellip">${k ? esc(k) : '<span style="color:var(--faint)">–</span>'}${isConnected(d) ? ' · <span style="color:var(--ok)">connesso</span>' : d.autoconnect ? ' · <span style="color:var(--accent)">auto</span>' : ""}</div>
       <div>${bars(d.rssi)}</div>
       <div class="chips">${chips}</div>
       <div class="num">${ago(d.age)}</div>
@@ -255,6 +333,8 @@ function renderList() {
 
 function renderDetail() {
   const box = $("detail"), inner = $("detail-in");
+  box.classList.toggle("wide", ui.panel === "snippets");
+  if (ui.panel === "snippets") { box.classList.add("open"); renderSnippets(inner); return; }
   if (ui.panel === "settings" && ui.st.user) {
     box.classList.add("open");
     if ($("pw")) return;  // the 3 s refresh must not wipe what is being typed
@@ -296,35 +376,160 @@ function renderDetail() {
   if (d.tx_power != null) props.push(["Potenza TX", esc(d.tx_power) + " dBm"]);
   if (d.uuids && d.uuids.length) props.push(["Servizi", `<span class="mono">${d.uuids.map(esc).join("<br>")}</span>`]);
   const p = d.profile, act = ui.acts[d.address];
-  const busy = act && (act.status === "sending" || act.status === "pending" || act.status === "running");
+  const busy = act && BUSY.includes(act.status);
   const stateText = !act ? "" : act.status === "sending" ? "Invio…" : act.status === "pending" ? `Inviato a ${esc(act.name || "nodo")}…`
     : act.status === "running" ? "In esecuzione…" : act.status === "ok" ? "Fatto" : esc(act.error || "Errore");
   const actions = p && p.actions.length ? `<div class="field"><label>Azioni</label><div class="actions">${p.actions.map(a =>
     `<button class="act" data-act="${esc(a.id)}"${busy ? " disabled" : ""}>${esc(a.label)}</button>`).join("")}
     <span class="act-state ${act ? esc(act.status) : ""}">${stateText}</span></div></div>` : "";
+  if (document.activeElement && document.activeElement.type === "time" && $("alarms") && $("alarms").dataset.address === d.address) return;  // a time is being typed
   const profileLine = p ? `<span class="tagline">${esc([p.class_label, p.label].filter(Boolean).join(" · "))}</span>` : "";
   inner.innerHTML = `<header>${avatar(d)}<div style="flex:1;min-width:0"><h2>${esc(title(d) || "Senza nome")}</h2>${profileLine}</div><button class="x" data-close>×</button></header>
     ${actions}
+    ${p && p.alarms ? alarmGrid(d, p.alarms) : ""}
+    <div class="field"><label class="check"><input type="checkbox" id="auto"${d.autoconnect ? " checked" : ""}>Connetti automaticamente</label>
+      <p class="note" style="margin:4px 0 0 21px">Vale per tutta la mesh: il nodo che lo rileva si connette da solo.</p></div>
     <div class="field"><label for="label">Nome (condiviso con tutta la mesh)</label>
       <form class="rename" id="rename"><input id="label" maxlength="64" placeholder="Es. Telefono di Marco" value="${esc(draft ?? d.label ?? "")}"><button class="btn">Salva</button></form></div>
     <div class="field"><label>Dettagli</label><dl class="props">${props.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl></div>
     <div class="field"><label>Visto da</label><div class="seen">${d.seen_by.map(s =>
-      `<div><span>${esc(s.name)}${s.connected ? ' <span style="color:var(--ok)">· connesso</span>' : ""}</span><span>${bars(s.rssi)} <span class="mono">${ago(s.age)}</span></span></div>`).join("")}</div></div>`;
+      `<div><span>${esc(s.name)}${s.radio ? ` <span class="mono">${esc(s.radio)}</span>` : ""}${s.connected ? ' <span style="color:var(--ok)">· connesso</span>' : ""}</span><span>${bars(s.rssi)} <span class="mono">${ago(s.age)}</span></span></div>`).join("")}</div></div>`;
   if (focused) { const el = $("label"); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+}
+
+const DAYS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+// The alarms the mesh wants on a device: a column per alarm time the device holds, a row per day.
+function alarmGrid(d, slots) {
+  // a column per time in use, plus an empty one to add the next, up to what the device holds
+  const a = d.alarms, used = a ? a.slots.slice(0, slots) : [];
+  const cols = used.length < slots ? [...used, {time: "", days: []}] : used;
+  const state = !a ? "Mai impostate dalla mesh: quelle sul dispositivo restano come sono."
+    : a.pending ? '<span style="color:var(--warn)">Da applicare</span>: premi "Applica ora e sveglie".'
+    : `<span style="color:var(--ok)">Applicate</span> ${ui.st.time - a.applied < 5 ? "adesso" : ago(ui.st.time - a.applied) + " fa"}.`;
+  return `<div class="field"><label>Sveglie <span style="float:right">${used.length} di ${slots} orari</span></label>
+    <div style="overflow-x:auto"><table class="grid" id="alarms" data-address="${esc(d.address)}"><tr><th></th>${cols.map((c, i) =>
+      `<td><input type="time" data-col="${i}" value="${esc(c.time)}" aria-label="Orario ${i + 1}"></td>`).join("")}</tr>
+    ${DAYS.map((day, r) => `<tr class="${r > 4 ? "we" : ""}"><th>${day}</th>${cols.map((c, i) =>
+      `<td><input type="checkbox" data-col="${i}" data-day="${r}"${c.days.includes(r) ? " checked" : ""}${c.time ? "" : " disabled"} aria-label="${day} ${esc(c.time)}"></td>`).join("")}</tr>`).join("")}</table></div>
+    <p class="note" style="margin:8px 0 0">${state}</p></div>`;
+}
+function saveAlarms() {
+  const grid = $("alarms"), d = ui.st.devices.find(x => x.address === grid.dataset.address), slots = [];
+  for (const input of grid.querySelectorAll("input[type=time]")) {
+    if (!input.value) continue;
+    const days = [...grid.querySelectorAll(`input[type=checkbox][data-col="${input.dataset.col}"]:checked`)].map(c => +c.dataset.day);
+    slots.push({time: input.value.slice(0, 5), days});
+  }
+  let tz = null;
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) {}
+  if (d) d.alarms = {slots, tz, applied: null, pending: true};  // shown at once; the mesh follows
+  post("/api/alarms", {address: grid.dataset.address, slots, tz}).then(refresh, refresh);
+}
+
+const SNIPPET_TEMPLATE = "// Gira su ogni nodo della mesh, su quello che il nodo vede.\nhost.onReady(() => {\n  log(\"pronto su \" + host.name)\n})\n\nhost.onDevice(device => {\n  if (device.name == \"MSF0\" && device.rssi > -70) {\n    device.action(\"vibrate\")\n  }\n})\n";
+const SNIPPET_REF = `host.onReady(() => { ... })          snippet caricato sul nodo
+host.onDevice(device => { ... })     dispositivo rilevato dal nodo
+host.onDeviceLost(device => { ... }) non si sente più
+host.onConnect(device => { ... })    connesso al nodo
+host.onDisconnect(device => { ... })
+host.every(60, () => { ... })        ogni N secondi (minimo 5)
+
+host.name  host.id  host.role  host.radios
+device.address  .name  .label  .rssi  .connected  .paired
+       .radio  .manufacturer  .uuids  .class  .model  .autoconnect
+device.connect()  device.disconnect()  device.action("vibrate")
+device.action("sync")   applica ora e sveglie impostate nella mesh
+log("testo", valore, ...)
+
+let x = 1; if (...) { } else { }; return
++ - * / %  == != < <= > >=  && || !   "testo"  [1, 2]
+testo.startsWith() .endsWith() .includes() .toLowerCase() .length
+Niente cicli: uno script è una serie di reazioni agli eventi.`;
+
+function snippetHosts(s) {
+  if (!s || !s.hosts.length) return `<p class="note">${s && !s.enabled ? "Disattivo: nessun nodo lo esegue." : "Nessun nodo lo sta ancora eseguendo (serve qualche secondo; i nodi senza Bluetooth o non aggiornati non eseguono snippet)."}</p>`;
+  return s.hosts.map(h => `<div class="hostlog"><span class="dot ${h.error ? "bad" : "ok"}" style="display:inline-block;margin-right:8px"></span><b style="font-weight:500">${esc(h.name)}</b>
+    ${h.error ? `<span class="mono" style="color:var(--bad)">${esc(h.error)}</span>` : ""}${h.log.map(l => `<span class="mono">${esc(l)}</span>`).join("")}</div>`).join("");
+}
+
+function renderSnippets(inner) {
+  const st = ui.st;
+  if (ui.snip == null) {
+    const names = a => (st.labels[a] && st.labels[a][0]) || (st.devices.find(d => d.address === a) || {}).name || "";
+    inner.innerHTML = `<header><h2>Automazione</h2><button class="x" data-close>×</button></header>
+      <div class="field"><label>Snippet</label>
+        <p class="note">Piccoli script distribuiti a tutti i nodi della mesh ed eseguiti da ciascuno sugli eventi che vede: un dispositivo rilevato, connesso, perso…</p>
+        <div class="rowlist">${st.snippets.map(s => `<button data-snip="${esc(s.id)}"><span class="dot ${!s.enabled ? "" : s.hosts.some(h => h.error) ? "bad" : "ok"}"></span>
+          <span class="label">${esc(s.name)}</span><span class="count" style="color:var(--faint)">${s.enabled ? s.hosts.length + " nodi" : "disattivo"}</span></button>`).join("")}</div>
+        <button class="btn" data-snip="new" style="margin-top:12px">Nuovo snippet</button></div>
+      <div class="field"><label>Connessione automatica</label>
+        <p class="note">Dispositivi a cui i nodi si connettono appena li rilevano. Si attiva dalla scheda del dispositivo.</p>
+        <div class="rowlist">${st.autoconnect.map(a => `<div><span class="label">${esc(names(a) || "Senza nome")} <span class="mono">${esc(a)}</span></span>
+          <button class="x" data-auto-del="${esc(a)}" title="Togli" style="width:auto">×</button></div>`).join("") || '<div style="color:var(--faint);border:0">Nessuno</div>'}</div></div>`;
+    return;
+  }
+  const s = st.snippets.find(x => x.id === ui.snip);
+  if ($("snip") && $("snip").dataset.id === ui.snip) {  // the 3 s refresh must not wipe what is being typed
+    $("snip-hosts").innerHTML = snippetHosts(s);
+    return;
+  }
+  if (!s && ui.snip !== "new") { ui.snip = null; return renderSnippets(inner); }
+  inner.innerHTML = `<header><button class="x" data-snip-back title="Tutti gli snippet">←</button><h2>${s ? "Snippet" : "Nuovo snippet"}</h2><button class="x" data-close>×</button></header>
+    <form class="pw" id="snip" data-id="${esc(ui.snip)}" style="justify-items:stretch">
+      <label>Nome<input id="snip-name" maxlength="64" required value="${esc(s ? s.name : "")}"></label>
+      <textarea class="code" id="snip-code" maxlength="4096" spellcheck="false" autocapitalize="off">${esc(s ? s.code : SNIPPET_TEMPLATE)}</textarea>
+      <label class="check"><input type="checkbox" id="snip-on"${!s || s.enabled ? " checked" : ""}>Attivo</label>
+      <div class="actions"><button class="btn" id="snip-save">Salva</button><span class="act-state" id="snip-state"></span>
+        ${s ? '<button type="button" class="btn danger" data-snip-del>Elimina</button>' : ""}</div>
+    </form>
+    <div class="field" style="margin-top:18px"><label>Sui nodi</label><div id="snip-hosts">${snippetHosts(s)}</div></div>
+    <details class="ref"><summary>Cosa si può scrivere</summary><pre>${esc(SNIPPET_REF)}</pre></details>`;
+}
+
+async function post(url, body) {
+  const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  const res = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(res.error || "Errore");
+  return res;
+}
+
+async function saveSnippet() {
+  const state = (text, cls) => { $("snip-state").textContent = text; $("snip-state").className = "act-state " + cls; };
+  const body = {name: $("snip-name").value, code: $("snip-code").value, enabled: $("snip-on").checked};
+  if (ui.snip !== "new") body.id = ui.snip;
+  state("Salvataggio…", "");
+  try {
+    const res = await post("/api/snippet", body);
+    ui.snip = res.id;
+    $("snip").dataset.id = res.id;
+    state("Salvato: in distribuzione ai nodi", "ok");
+    refresh();
+  } catch (e) {
+    state(e.message, "error");
+  }
 }
 
 function render() {
   if (!ui.st) return;
   document.title = `btedge · ${ui.st.node.name}`;
-  renderSide(); renderList(); renderDetail();
+  renderSide(); renderBt(); renderList(); renderDetail();
 }
 
-async function runAction(address, action) {
-  const set = v => { ui.acts[address] = v; renderDetail(); };
+function runAction(address, action) {
+  return command("/api/action", {address, action}, v => { ui.acts[address] = v; renderDetail(); });
+}
+
+async function switchBluetooth(node, mode) {
+  await command("/api/bluetooth", {node, mode}, v => { ui.bt[node] = v; renderBt(); });
+  if (ui.bt[node].status === "ok") { delete ui.bt[node]; refresh(); }
+}
+
+// Send a command to the mesh and follow it until the node that runs it answers.
+async function command(url, body, set) {
   set({status: "sending"});
   try {
-    const r = await fetch("/api/action", {method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({address, action})});
+    const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)});
     const res = await r.json();
     if (!r.ok) return set({status: "error", error: res.error});
     set({status: "pending", name: res.name});
@@ -366,7 +571,10 @@ async function refresh() {
   try {
     const r = await fetch("/api/state", {cache: "no-store"});
     if (!r.ok) throw new Error(r.status);
-    ui.st = await r.json();
+    const st = await r.json();
+    // the node was updated while this page was open: load the new panel, unless something is being typed
+    if (ui.st && st.build !== ui.st.build && !$("snip") && !$("pw")) return location.reload();
+    ui.st = st;
     render();
   } catch (e) {
     $("self").textContent = "Nodo non raggiungibile";
@@ -374,19 +582,25 @@ async function refresh() {
 }
 
 document.addEventListener("click", e => {
-  const t = e.target.closest("[data-node],[data-dev],[data-f],[data-close],[data-join],[data-act],[data-settings]");
+  const t = e.target.closest("[data-node],[data-dev],[data-f],[data-close],[data-nav],[data-act],[data-bt],[data-snip],[data-snip-back],[data-snip-del],[data-auto-del],[data-theme-toggle]");
   if (!t) return;
+  if (t.dataset.themeToggle !== undefined) theme.toggle();
+  if (t.dataset.autoDel) { post("/api/autoconnect", {address: t.dataset.autoDel, enabled: false}).then(refresh, refresh); return; }
+  if (t.dataset.snipDel !== undefined) { post("/api/snippet", {id: ui.snip, delete: true}).then(() => { ui.snip = null; refresh(); }, refresh); return; }
+  if (t.dataset.bt) { switchBluetooth(ui.node, t.dataset.bt); return; }
   if (t.dataset.act) { runAction(ui.sel, t.dataset.act); return; }
   if (t.dataset.node !== undefined) ui.node = t.dataset.node || null;
   else if (t.dataset.dev) { ui.sel = ui.sel === t.dataset.dev && !ui.panel ? null : t.dataset.dev; ui.panel = null; }
   else if (t.dataset.f) { ui.filter = t.dataset.f; for (const b of $("seg").children) b.classList.toggle("on", b === t); }
   else if (t.dataset.close !== undefined) { ui.sel = null; ui.panel = null; }
-  else if (t.dataset.join !== undefined) { ui.panel = "join"; ui.sel = null; }
-  else if (t.dataset.settings !== undefined) { ui.panel = "settings"; ui.sel = null; }
+  else if (t.dataset.nav) { ui.panel = ui.panel === t.dataset.nav ? null : t.dataset.nav; ui.sel = null; ui.snip = null; }
+  else if (t.dataset.snip) ui.snip = t.dataset.snip;
+  else if (t.dataset.snipBack !== undefined) ui.snip = null;
   render();
 });
 document.addEventListener("submit", async e => {
   if (e.target.id === "pw") { e.preventDefault(); changePassword(); return; }
+  if (e.target.id === "snip") { e.preventDefault(); saveSnippet(); return; }
   if (e.target.id !== "rename") return;
   e.preventDefault();
   const label = $("label").value;
@@ -396,10 +610,30 @@ document.addEventListener("submit", async e => {
   refresh();
 });
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") { ui.sel = null; ui.panel = null; render(); }
-  if (e.key === "/" && document.activeElement.tagName !== "INPUT") { e.preventDefault(); $("q").focus(); }
+  if (e.key === "Escape" && !(ui.panel === "snippets" && ui.snip)) { ui.sel = null; ui.panel = null; render(); }
+  if (e.key === "/" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) { e.preventDefault(); $("q").focus(); }
 });
 $("q").addEventListener("input", renderList);
+document.addEventListener("change", e => {
+  if (e.target.closest("#alarms")) {
+    if (e.target.type === "checkbox") e.target.blur();
+    saveAlarms();
+    if (e.target.type === "checkbox") renderDetail();
+    return;
+  }
+  if (e.target.id !== "auto") return;
+  const d = ui.st.devices.find(x => x.address === ui.sel);
+  if (d) d.autoconnect = e.target.checked;  // shown at once; the mesh follows
+  post("/api/autoconnect", {address: ui.sel, enabled: e.target.checked}).then(refresh, refresh);
+});
+document.addEventListener("focusout", e => {  // a time was typed: enable its column
+  if (e.target.type === "time" && e.target.closest("#alarms")) setTimeout(renderDetail);
+});
+document.addEventListener("keydown", e => {  // Tab indents in the snippet editor
+  if (e.key !== "Tab" || e.target.id !== "snip-code") return;
+  e.preventDefault();
+  e.target.setRangeText("  ", e.target.selectionStart, e.target.selectionEnd, "end");
+});
 refresh();
 ui.timer = setInterval(refresh, 3000);
 </script>

@@ -70,7 +70,7 @@ class Profiler:
         return bool(match)
 
     def profile(self, dev):
-        """{"id", "label", "class", "class_label", "adapter", "actions"} or None."""
+        """{"id", "label", "class", "class_label", "adapter", "actions", "alarms"} or None."""
         found, first, acts, adapter = None, None, [], None
         for rule in self.rules:
             if not self._matches(rule["match"], dev):
@@ -87,4 +87,4 @@ class Profiler:
         cls = found.get("class")
         return {"id": found["id"], "label": found.get("label"), "class": cls,
                 "class_label": self.classes.get(cls) if cls else None,
-                "adapter": adapter, "actions": acts}
+                "adapter": adapter, "actions": acts, "alarms": adapters.alarms(adapter)}

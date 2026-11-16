@@ -26,6 +26,15 @@ cp -R "$SRC/btedge" "$DEST/app/"
 [ -x "$DEST/venv/bin/python" ] || python3 -m venv "$DEST/venv"
 "$DEST/venv/bin/pip" install -q --disable-pip-version-check cryptography
 
+# the `btedge` command: btedge bluetooth release ...
+mkdir -p "$DEST/bin"
+cat > "$DEST/bin/btedge" <<EOF
+#!/bin/sh
+export BTEDGE_CONFIG=\${BTEDGE_CONFIG:-$DEST/config.json}
+PYTHONPATH=$DEST/app exec "$DEST/venv/bin/python" -m btedge "\$@"
+EOF
+chmod 755 "$DEST/bin/btedge"
+
 swiftc -O -o "$APP/Contents/MacOS/BtedgeBluetooth" "$SRC/deploy/macos/main.swift" \
     -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$SRC/deploy/macos/Info.plist"
 cp "$SRC/deploy/macos/Info.plist" "$APP/Contents/Info.plist"
@@ -59,4 +68,5 @@ launchctl bootout "gui/$(id -u)/btedge" 2>/dev/null || true
 while launchctl print "gui/$(id -u)/btedge" >/dev/null 2>&1; do sleep 1; done  # bootout is asynchronous
 launchctl bootstrap "gui/$(id -u)" "$AGENT"
 echo "btedge running: http://127.0.0.1:4646 (allow Bluetooth when macOS asks)"
+echo "leave Bluetooth alone, or take it back: $DEST/bin/btedge bluetooth release|on"
 echo "admit it into the mesh, once: python3 -m btedge enroll $(id -un)@$(hostname) --state-dir $DEST/state"

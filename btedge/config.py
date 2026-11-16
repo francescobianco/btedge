@@ -24,14 +24,16 @@ DEFAULTS = {
     "http": {"host": "0.0.0.0", "port": 4646},
     "scanner": {
         "backend": "bluez",   # "bluez", "corebluetooth" (macOS), "fake" or "none" (no Bluetooth)
-        "adapter": None,      # e.g. "hci0"; None picks the first adapter
+        "adapter": None,      # None: every radio of the host; or "hci0", or ["hci0", "hci1"]
         "device_ttl": 60,     # seconds a device stays listed after its last advert
         "cache_ttl": 300,     # seconds before unpaired devices are dropped from BlueZ
         "rescan_interval": 20,  # seconds per discovery session; must stay well below device_ttl
         "advertise": True,    # broadcast a BLE beacon so other nodes see us over the air
-        "keep_connected": [], # addresses of paired devices to (re)connect whenever they drop
+        "keep_connected": [], # addresses this node (re)connects whenever they drop; for the whole
+                              # mesh flag the device "connetti automaticamente" in the panel
         "fake_room": 0,       # fake backend: which simulated room this node is
         "fake_rooms": 1,      # fake backend: how many simulated rooms devices move across
+        "fake_radios": 1,     # fake backend: how many simulated radios this node has
     },
     "admin": {
         # HTTP Basic auth for the panel. Control nodes always require it and generate a
@@ -124,12 +126,14 @@ def _apply_env(cfg, environ):
 
 def load(path=None, environ=None):
     cfg = copy.deepcopy(DEFAULTS)
+    environ = os.environ if environ is None else environ
+    path = path or environ.get("BTEDGE_CONFIG")  # set by the `btedge` command where the config is elsewhere
     if path is None and os.path.exists(DEFAULT_PATH):
         path = DEFAULT_PATH
     if path:
         with open(path) as fh:
             _merge(cfg, json.load(fh))
-    _apply_env(cfg, os.environ if environ is None else environ)
+    _apply_env(cfg, environ)
     if cfg["role"] not in ROLES:
         raise ValueError("role must be one of %s" % ", ".join(ROLES))
     cfg["state_dir"] = _state_dir(cfg["state_dir"])

@@ -1,13 +1,19 @@
 """HTTP server: the panel, its JSON API and the mesh sync endpoint."""
+import hashlib
 import json
 import logging
 import os
+import re
+import secrets
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from . import __version__, protocol
+from . import automation
+from .actions import BLUETOOTH
+from .registry import SNIPPET_MAX, clean_alarms
 from .auth import Login, LoginError
 
 log = logging.getLogger(__name__)
@@ -25,6 +31,9 @@ class Panel:
         self.join = join
         self.mesh = mesh
         self.backend = backend
+        with open(os.path.join(STATIC, "index.html"), "rb") as fh:
+            # lets a panel left open notice that the node was updated, and reload itself
+            self.build = hashlib.sha1(fh.read()).hexdigest()[:12]
         self.server = ThreadingHTTPServer((host, port), self._handler())
         self.server.daemon_threads = True
 
@@ -43,7 +52,7 @@ class Panel:
         if self.profiler:
             for dev in view["devices"]:
                 dev["profile"] = self.profiler.profile(dev)
-        view.update(version=__version__, time=time.time(),
+        view.update(version=__version__, build=self.build, time=time.time(),
                     scanner=dict(self.backend.status) if self.backend else None,
                     mesh=self.mesh.status() if self.mesh else None, join=self.join,
                     user=self.login.user if self.login.required else None)
@@ -61,6 +70,40 @@ class Panel:
         # connected first (no need to connect), then the strongest signal
         best = sorted(dev["seen_by"], key=lambda s: (not s["connected"], s["age"] > 30, -(s["rssi"] or -999)))[0]
         return {"id": self.registry.issue(best["node"], address, action), "node": best["node"], "name": best["name"]}
+
+    def switch(self, node_id, mode):
+        """Ask a node to put its Bluetooth in a mode: "on", "released" or "off" (see actions.py)."""
+        node = next((n for n in self.registry.view()["nodes"] if n["id"] == node_id), None)
+        if node is None or node["bluetooth"] is None:
+            raise LookupError("node not in the mesh, without Bluetooth or too old")
+        action = next(a for a, m in BLUETOOTH.items() if m == mode)
+        sent = {"id": self.registry.issue(node_id, "", action), "node": node_id, "name": node["name"]}
+        if self.mesh:
+            self.mesh.kick()
+        return sent
+
+    def save_snippet(self, data):
+        """Create, change or delete ({"id", "delete": true}) a snippet for the whole mesh."""
+        sid = str(data.get("id") or secrets.token_hex(4))[:32]
+        if not re.fullmatch(r"[0-9a-zA-Z_-]+", sid):
+            raise ValueError("bad snippet id")
+        if data.get("delete"):
+            self.registry.set_shared("snippet:" + sid, None)
+            return {"id": sid}
+        name, code = str(data.get("name") or "").strip()[:64], data.get("code")
+        if not name:
+            raise ValueError("Dai un nome allo snippet")
+        if not isinstance(code, str) or len(code) > SNIPPET_MAX:
+            raise ValueError("Lo script può avere al massimo %d caratteri" % SNIPPET_MAX)
+        error = automation.check(code)
+        if error:
+            raise ValueError(error)
+        if not self.registry.set_shared("snippet:" + sid, {"name": name, "code": code,
+                                                           "enabled": data.get("enabled") is not False}):
+            raise ValueError("Troppe impostazioni condivise nella mesh")
+        if self.mesh:
+            self.mesh.kick()
+        return {"id": sid}
 
     def _handler(self):
         panel = self
@@ -131,6 +174,47 @@ class Panel:
                         self._json(panel.act(str(data["address"])[:64], str(data["action"])[:32]))
                     except LookupError as exc:
                         self._json({"error": str(exc)}, 409)
+                    except (KeyError, TypeError, ValueError) as exc:
+                        self._json({"error": str(exc)}, 400)
+                    return
+                if self.path == "/api/bluetooth":
+                    try:
+                        data = self._body()
+                        if data["mode"] not in BLUETOOTH.values():
+                            raise ValueError("mode must be one of %s" % ", ".join(BLUETOOTH.values()))
+                        self._json(panel.switch(str(data["node"])[:32], data["mode"]))
+                    except KeyError as exc:
+                        self._json({"error": "missing %s" % exc}, 400)
+                    except LookupError as exc:
+                        self._json({"error": str(exc)}, 409)
+                    except (TypeError, ValueError) as exc:
+                        self._json({"error": str(exc)}, 400)
+                    return
+                if self.path == "/api/alarms":
+                    try:
+                        data = self._body()
+                        alarms = clean_alarms(data)
+                        if alarms is None:
+                            raise ValueError("bad alarms")
+                        if not panel.registry.set_shared("alarms:" + str(data["address"])[:64], alarms):
+                            raise ValueError("Troppe impostazioni condivise nella mesh")
+                        if panel.mesh:
+                            panel.mesh.kick()
+                        self._json({"ok": True})
+                    except (KeyError, TypeError, ValueError) as exc:
+                        self._json({"error": str(exc)}, 400)
+                    return
+                if self.path in ("/api/autoconnect", "/api/snippet"):
+                    try:
+                        data = self._body()
+                        if self.path == "/api/snippet":
+                            self._json(panel.save_snippet(data))
+                        else:
+                            if not isinstance(data["enabled"], bool):
+                                raise ValueError("enabled must be true or false")
+                            panel.registry.set_shared("autoconnect:" + str(data["address"])[:64],
+                                                      True if data["enabled"] else None)
+                            self._json({"ok": True})
                     except (KeyError, TypeError, ValueError) as exc:
                         self._json({"error": str(exc)}, 400)
                     return

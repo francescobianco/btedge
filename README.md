@@ -61,8 +61,128 @@ connessi), ricerca, filtro per nodo nella barra laterale. Un clic su un disposit
 il dettaglio: produttore, servizi, nodi che lo vedono con RSSI, e il **nome** da dare al
 dispositivo (viaggia nella mesh, lo vedono tutti; salvato in `<state_dir>/labels.json`).
 
-Per tenere connesso un dispositivo associato (es. uno smartwatch) mettilo in
-`scanner.keep_connected`: il nodo lo riconnette ogni volta che cade.
+Il tema chiaro/scuro si cambia dalla barra laterale (all'inizio segue quello del sistema).
+
+### Connessione automatica
+
+Nella scheda di un dispositivo, **Connetti automaticamente** lo segna per tutta la mesh:
+l'informazione viene distribuita a tutti i nodi e il nodo che lo rileva si connette da
+solo, attraverso la radio che lo sente meglio, e lo riconnette quando cade. Se un altro
+nodo lo tiene già connesso gli altri non ci provano. L'elenco dei dispositivi segnati
+(anche di quelli fuori portata) è in **Automazione**, da dove si possono togliere.
+
+`scanner.keep_connected` nella config resta, per i dispositivi che un nodo preciso deve
+tenere connessi a prescindere dalla mesh.
+
+### Sveglie e ora dei braccialetti
+
+Per i dispositivi che le hanno (oggi le bande Yoho / ID115 Plus) la scheda mostra la
+griglia **Sveglie**, come `alarms.txt` di [id115](https://github.com/francescobianco/id115):
+una riga per giorno (lun–dom) e una colonna per orario. Le colonne crescono una alla
+volta fino al numero di orari che quel dispositivo può tenere: 3 sull'ID115 Plus, di più
+(fino a 16) per gli adapter che dichiarano un `alarms` più alto. Ogni modifica viene salvata subito nella mesh.
+
+Il braccialetto non permette di leggere le sveglie che ha, quindi la verità è lo **stato
+desiderato** tenuto dalla mesh. Il bottone **Applica ora e sveglie** (accanto a "Fai
+vibrare") lo scrive sul dispositivo: corregge l'ora e programma tutte le sveglie. Sotto
+la griglia si vede se il dispositivo è allineato ("Applicate…") o se ci sono modifiche
+"Da applicare". Finché le sveglie non sono mai state impostate dalla mesh il bottone
+corregge solo l'ora e lascia quelle che il braccialetto ha già.
+
+L'ora viene scritta nel fuso orario del browser da cui si sono impostate le sveglie (o,
+senza sveglie, in quello del nodo che esegue). Per riapplicare da soli a ogni
+connessione basta uno snippet: `host.onConnect(d => d.action("sync"))`.
+
+### Snippet di automazione
+
+In **Automazione** si scrivono gli snippet: piccoli script in un JavaScript minimale,
+distribuiti a tutti i nodi ed eseguiti da ogni nodo con Bluetooth sugli eventi che vede.
+
+```js
+host.onReady(() => {
+  log("pronto su " + host.name)
+})
+
+host.onDevice(device => {
+  if (device.class == "wristband" && device.rssi > -70) {
+    device.action("vibrate")
+  }
+})
+
+host.onDisconnect = function (device) { log("perso", device.label || device.name) }
+```
+
+| Evento | Quando |
+|---|---|
+| `host.onReady(fn)` | lo snippet è stato caricato (o modificato) sul nodo |
+| `host.onDevice(fn)` | un dispositivo è entrato in portata del nodo |
+| `host.onDeviceLost(fn)` | non lo si sente più |
+| `host.onConnect(fn)` / `host.onDisconnect(fn)` | si è connesso al nodo / disconnesso |
+| `host.every(secondi, fn)` | periodicamente (minimo 5 s) |
+
+- `host`: `name`, `id`, `role`, `radios`. Per limitare uno snippet a un nodo:
+  `if (host.name == "orangepi") { ... }`.
+- `device`: `address`, `name`, `label` (il nome dato nel pannello), `rssi`, `connected`,
+  `paired`, `radio`, `manufacturer`, `uuids`, `class` e `model` (dal profilo),
+  `autoconnect`; azioni `device.connect()`, `device.disconnect()`,
+  `device.action("vibrate")` (le azioni dell'adapter). Le azioni vengono accodate ed
+  eseguite in ordine dopo l'handler, che quindi non si blocca mai.
+- `log(...)`: le ultime righe e l'ultimo errore di ogni nodo si vedono accanto allo
+  snippet nel pannello (e nel log del nodo).
+- Linguaggio: `let`/`const`, `if`/`else`, `return`, funzioni freccia e `function`,
+  numeri, stringhe, `true`/`false`/`null`, liste, `+ - * / %`, confronti, `&& || !`,
+  `.length`, `.includes()`, `.startsWith()`, `.endsWith()`, `.toLowerCase()`,
+  `.toUpperCase()`, `.trim()`. **Niente cicli, import o accesso al sistema**: uno
+  snippet può fare solo ciò che `host` e `device` offrono, e ogni esecuzione ha un
+  tetto di passi. Gli errori di sintassi vengono segnalati al salvataggio, con la riga.
+
+Snippet e connessioni automatiche sono *impostazioni condivise*: ogni nodo adotta la
+versione più recente che sente, la salva in `<state_dir>/shared.json` e la ripubblica,
+quindi arrivano a tutti e restano anche se il nodo che le ha scritte sparisce. Come per
+le azioni, può scriverle chiunque abbia accesso a un pannello della mesh.
+
+### Più radio sullo stesso nodo
+
+Un nodo usa **tutti gli adattatori Bluetooth** dell'host (quello integrato, più i
+dongle): scansiona e trasmette il beacon su ognuno, anche se vengono inseriti o tolti a
+nodo acceso. Un dispositivo sentito da più radio resta un solo dispositivo, riportato
+con la radio che lo tiene connesso o che lo sente meglio (visibile in "Visto da"); le
+connessioni e le azioni passano da quella. Per usarne solo alcune:
+`"scanner": {"adapter": "hci0"}` oppure `["hci0", "hci1"]`. La modalità Bluetooth
+(attivo / rilasciato / spento) vale per tutte le radio del nodo.
+
+### Bluetooth di un nodo: attivo, rilasciato, spento
+
+Selezionando un nodo nella barra laterale compare il selettore **Bluetooth**:
+
+| Modalità | Cosa fa btedge | Radio dell'host |
+|---|---|---|
+| **Attivo** | scansione, beacon, riconnessione dei `keep_connected`, azioni | accesa, usata da btedge |
+| **Rilasciato** | niente: ferma la scansione, toglie il beacon, non riconnette, rifiuta le azioni | accesa, **a disposizione dell'host** (sviluppo, altri applicativi) |
+| **Spento** | come sopra | spenta (`Powered = false` su BlueZ) |
+
+In "Rilasciato" btedge toglie solo ciò che ha avviato lui: l'adattatore resta acceso e
+i dispositivi già connessi restano connessi. Il nodo resta nella mesh, senza dispositivi,
+con la dicitura "BT rilasciato" / "BT spento". Il comando viaggia nella mesh come le
+azioni, quindi funziona da qualsiasi pannello, anche dal nodo di controllo verso un nodo
+dietro NAT.
+
+Le stesse cose si fanno **dall'host**, con il comando `btedge` messo dall'installer:
+
+```sh
+sudo btedge bluetooth release   # lascia la radio all'host
+sudo btedge bluetooth on        # btedge se la riprende
+sudo btedge bluetooth off       # spegne la radio
+sudo btedge bluetooth           # stato
+```
+
+La modalità è il file `<state_dir>/bluetooth_mode`, che il nodo tiene d'occhio: il comando
+ha effetto entro un secondo, senza login né riavvio, e la scelta sopravvive ai riavvii
+(a nodo fermo decide come ripartirà).
+
+Su macOS "Spento" non c'è (nessuna API pubblica per spegnere la radio) e in "Rilasciato"
+il nodo ignora ciò che sente mentre l'helper continua la scansione, che lì non toglie
+nulla alle altre applicazioni. Il comando è `~/.btedge/bin/btedge`.
 
 ## Installazione (Armbian / Debian)
 
@@ -74,7 +194,8 @@ sudo /opt/btedge/deploy/install.sh
 Il pannello è su `http://<ip-del-nodo>:4646`. La configurazione è in
 `/etc/btedge/config.json` (vedi `deploy/config.example.json`); per far parte della
 stessa mesh i nodi devono avere lo stesso `mesh.owner` ed essere accreditati con
-`python3 -m btedge enroll` (lo ricorda anche l'installer). Per aggiornare:
+`btedge enroll` (lo ricorda anche l'installer). L'installer mette anche il comando
+`btedge` in `/usr/local/bin` (equivale a `python3 -m btedge` dal checkout). Per aggiornare:
 `cd /opt/btedge && sudo git pull && sudo systemctl restart btedge`.
 
 Su macchine con VPN o molti bridge (Docker) imposta `mesh.lan.interface` (es. `"eth0"`),
@@ -95,7 +216,7 @@ dispositivi e offrono le **azioni** che compaiono come bottoni nel pannello late
 
 | Adapter | Dispositivi | Azioni |
 |---|---|---|
-| `yoho` | bande Yoho Sports / uThink, es. ID115 Plus (`MSF0`), servizio `cc00` ([id115](https://github.com/francescobianco/id115)) | Fai vibrare (`08 01` su `cc06`) |
+| `yoho` | bande Yoho Sports / uThink, es. ID115 Plus (`MSF0`), servizio `cc00` ([id115](https://github.com/francescobianco/id115)) | Fai vibrare (`08 01` su `cc06`); Applica ora e sveglie (`04 00 …` e `0C …`), 3 orari |
 | `immediate_alert` | qualsiasi dispositivo con il profilo standard Find Me (servizio `1802`) | Fai vibrare (Alert Level `2A06` = 2) |
 
 Un'azione cliccata su qualsiasi pannello diventa un comando nello stato firmato del
@@ -105,7 +226,7 @@ mesh. Funziona anche dal nodo di controllo su internet verso un nodo dietro NAT
 (qualche secondo, al ritmo del gossip). Solo i membri della mesh possono dare comandi.
 
 Per aggiungere una famiglia di dispositivi: un modulo in `btedge/adapters/` (classe
-con `name`, `actions` e `run(gatt, action)`), registrato in `ADAPTERS`, e una regola
+con `name`, `actions` e `run(gatt, action, settings)`; `alarms = N` se ha N sveglie), registrato in `ADAPTERS`, e una regola
 in `profiles.json` che punta all'adapter.
 
 ## Nodi di controllo
@@ -152,7 +273,7 @@ avvia btedge: il Python di sistema non può dichiarare il permesso.
 
 Limiti rispetto a BlueZ: CoreBluetooth non espone i MAC, quindi un dispositivo ha un UUID
 valido solo su quel Mac e, se lo sente anche un nodo Linux, nella mesh compare due volte.
-Le azioni sui dispositivi e il beacon BLE non sono supportati.
+Le azioni sui dispositivi, le connessioni (anche automatiche) e il beacon BLE non sono supportati.
 
 ## Sviluppo
 
@@ -172,8 +293,12 @@ SSH di prova e una `mesh.lan.port` diversa. Due istanze `--fake` sulla stessa LA
 | GET | `/` | pannello web |
 | GET | `/api/state` | nodi, dispositivi aggregati, stato scanner e mesh |
 | POST | `/api/label` | `{"address", "label"}`: nome condiviso nella mesh |
+| POST | `/api/alarms` | `{"address", "slots": [{"time": "07:00", "days": [0..6]}], "tz"}` (0 = lunedì): sveglie volute su un dispositivo; le applica l'azione `sync` |
+| POST | `/api/autoconnect` | `{"address", "enabled"}`: connessione automatica, per tutta la mesh |
+| POST | `/api/snippet` | `{"id"?, "name", "code", "enabled"}` crea o modifica uno snippet (400 con l'errore di sintassi); `{"id", "delete": true}` lo elimina |
 | POST | `/api/password` | `{"current", "new"}`: cambia la password del pannello |
 | POST | `/api/action` | `{"address", "action"}`: esegue un'azione dell'adapter; risponde `{"id", "node"}` |
+| POST | `/api/bluetooth` | `{"node", "mode"}` con `mode` = `on`, `released` o `off`: modalità Bluetooth di un nodo; risponde `{"id", "node"}`, esito da `/api/action?id=…` |
 | GET | `/api/action?id=…` | esito: `pending`, `running`, `ok` o `error` |
 | GET | `/api/health` | `{"ok": true}` |
 | POST | `/api/mesh/sync` | scambio di stato tra nodi (pacchetto binario firmato) |
@@ -182,5 +307,6 @@ SSH di prova e una `mesh.lan.port` diversa. Due istanze `--fake` sulla stessa LA
 
 - Trasporto mesh **via Bluetooth** (GATT o advertising esteso) per nodi senza rete IP.
 - **Zone/aree** composte da più nodi e posizione più fine (trilaterazione).
-- Eventi di ingresso/uscita da un'area, webhook e MQTT.
+- Eventi di ingresso/uscita da un'area, webhook e MQTT (anche dagli snippet).
+- Modalità Bluetooth per singola radio (lasciare un dongle allo sviluppo, tenere l'altro in scansione).
 - Gestione degli indirizzi BLE casuali (rotazione) tramite fingerprint dei payload.

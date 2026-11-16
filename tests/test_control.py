@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import unittest
+import unittest.mock
 import urllib.error
 import urllib.request
 
@@ -16,6 +17,11 @@ from btedge.web import Panel
 
 
 class ControlConfigTest(unittest.TestCase):
+    def setUp(self):  # never read the config of a node installed on this machine
+        patch = unittest.mock.patch.object(config, "DEFAULT_PATH", "/nonexistent/btedge.json")
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def test_control_role_generates_and_keeps_secrets(self):
         with tempfile.TemporaryDirectory() as tmp:
             env = {"BTEDGE_ROLE": "control", "BTEDGE_STATE_DIR": tmp, "BTEDGE_LAN": "false",

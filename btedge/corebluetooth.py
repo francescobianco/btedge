@@ -6,13 +6,17 @@ one JSON object per line.
 
 CoreBluetooth hides MAC addresses. Devices are keyed by a UUID valid on this Mac only, so
 a device heard by a Mac and by a BlueZ node shows up as two devices in the mesh.
+
+Releasing Bluetooth only makes btedge ignore what the helper hears: the helper keeps
+its scan, which on macOS takes nothing away from other applications. The radio cannot
+be switched off from here: macOS has no public API for that.
 """
 import json
 import logging
 import sys
 import threading
 
-from .bluez import BTEDGE_UUID
+from .bluez import BTEDGE_UUID, Unsupported
 from .gatt import GattError, uuid128
 
 log = logging.getLogger(__name__)
@@ -45,6 +49,8 @@ class CoreBluetoothBackend:
         self.stream = sys.stdin.buffer if stream is None else stream
         self.status = {"backend": "corebluetooth", "state": "starting", "adapter": "CoreBluetooth",
                        "advertising": False, "error": None}
+        self.mode = "on"
+        self._helper = ("starting", None)  # what the helper last reported, shown while enabled
 
     def start(self):
         threading.Thread(target=self._run, name="corebluetooth", daemon=True).start()
@@ -52,10 +58,28 @@ class CoreBluetoothBackend:
     def gatt(self, address):
         raise GattError("device actions are not supported on macOS")
 
+    def connect(self, address):
+        raise Unsupported("connections are not supported on macOS")
+
+    disconnect = connect
+
+    def set_mode(self, mode):
+        if mode == "off":
+            raise Unsupported("macOS does not let btedge switch the radio off: release it instead")
+        self.mode = mode
+        self._set(*self._helper)
+
     def _set(self, state, error=None):
-        if error and error != self.status["error"]:
+        if error and error != self._helper[1]:
             log.warning("bluetooth error: %s", error)
-        self.status.update(state=state, error=error)
+        self._helper = (state, error)
+        if self.mode == "on":
+            self.status.update(state=state, error=error)
+        else:
+            self.status.update(state="paused", error=None)
+        # in the node's state too: a panel elsewhere can tell why this Mac sees nothing
+        self.registry.set_radios([{"name": "CoreBluetooth", "address": "", "state": self.status["state"],
+                                   "error": self.status["error"]}])
 
     def handle(self, message):
         state = message.get("state")

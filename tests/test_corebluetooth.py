@@ -3,7 +3,7 @@ import json
 import time
 import unittest
 
-from btedge.bluez import BTEDGE_UUID
+from btedge.bluez import BTEDGE_UUID, Unsupported
 from btedge.corebluetooth import CoreBluetoothBackend
 from btedge.gatt import GattError
 from btedge.registry import Registry
@@ -37,6 +37,16 @@ class CoreBluetoothTest(unittest.TestCase):
         backend.handle({"state": "unauthorized"})
         self.assertEqual(backend.status["state"], "error")
         self.assertIn("Privacy", backend.status["error"])
+
+    def test_released_backend_shows_paused_and_recovers_the_helper_state(self):
+        backend = CoreBluetoothBackend(self.registry, io.BytesIO())
+        backend.set_mode("released")
+        backend.handle({"state": "poweredOn"})
+        self.assertEqual(backend.status["state"], "paused")
+        with self.assertRaises(Unsupported):
+            backend.set_mode("off")
+        backend.set_mode("on")
+        self.assertEqual(backend.status["state"], "scanning")
 
     def test_bad_lines_do_not_stop_the_reader(self):
         self.run_backend(b"not json", {"no": "id"}, {"id": DEVICE, "rssi": -70})

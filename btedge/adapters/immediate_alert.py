@@ -11,7 +11,7 @@ class ImmediateAlert:
     name = "immediate_alert"
     actions = {"vibrate": "Fai vibrare"}
 
-    def run(self, gatt, action):
+    def run(self, gatt, action, settings=None):
         if action == "vibrate":
             gatt.write(ALERT_LEVEL, bytes([0x02]), response=False)
         return None

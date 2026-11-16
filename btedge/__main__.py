@@ -1,4 +1,4 @@
-"""Entry point: python3 -m btedge [--config FILE] [--fake] | python3 -m btedge enroll TARGET"""
+"""Entry point: btedge [--config FILE] [--fake] | btedge enroll TARGET | btedge bluetooth [MODE]"""
 import argparse
 import logging
 import os
@@ -8,6 +8,8 @@ import threading
 
 from . import config, trust
 from .actions import Dispatcher
+from .automation import Automation
+from .switch import MODE_FILE
 from .profiler import Profiler
 from .bluez import BluezBackend, FakeBackend
 from .corebluetooth import CoreBluetoothBackend
@@ -23,6 +25,9 @@ def main(argv=None):
     if argv[:1] == ["enroll"]:
         from .enroll import main as enroll
         return enroll(argv[1:])
+    if argv[:1] == ["bluetooth"]:
+        from .switch import main as switch
+        return switch(argv[1:])
     parser = argparse.ArgumentParser(prog="btedge", description="Bluetooth edge mesh node")
     parser.add_argument("-c", "--config", help="JSON config file (default: %s if present)" % config.DEFAULT_PATH)
     parser.add_argument("--fake", action="store_true", help="simulate Bluetooth devices")
@@ -47,12 +52,14 @@ def main(argv=None):
     registry = Registry(node, device_ttl=cfg["scanner"]["device_ttl"],
                         node_ttl=cfg["mesh"]["node_ttl"], max_hops=cfg["mesh"]["max_hops"],
                         labels_path=os.path.join(cfg["state_dir"], "labels.json"),
+                        shared_path=os.path.join(cfg["state_dir"], "shared.json"),
                         identity=identity, verifier=verifier)
     scanner = cfg["scanner"]
     if scanner["backend"] == "none":
         backend = None
     elif scanner["backend"] == "fake":
-        backend = FakeBackend(registry, room=scanner["fake_room"], rooms=scanner["fake_rooms"])
+        backend = FakeBackend(registry, room=scanner["fake_room"], rooms=scanner["fake_rooms"],
+                              radios=scanner["fake_radios"])
     elif scanner["backend"] == "corebluetooth":
         backend = CoreBluetoothBackend(registry)
     else:
@@ -62,7 +69,10 @@ def main(argv=None):
                                keep_connected=scanner["keep_connected"])
     mesh = Mesh(registry, cfg["mesh"], identity, verifier)
     profiler = Profiler(os.path.join(cfg["state_dir"], "profiles.json"))
-    dispatcher = Dispatcher(registry, backend, profiler, on_result=mesh.kick) if backend else None
+    dispatcher = Dispatcher(registry, backend, profiler, on_result=mesh.kick,
+                            mode_file=os.path.join(cfg["state_dir"], MODE_FILE)) if backend else None
+    automation = Automation(registry, {"connect": backend.connect, "disconnect": backend.disconnect,
+                                       "action": dispatcher.run}, profiler) if backend else None
     panel = Panel(registry, mesh, backend, cfg["http"]["host"], cfg["http"]["port"], profiler=profiler,
                   admin_password=cfg["admin"]["password"], admin_user=cfg["admin"]["user"],
                   password_file=os.path.join(cfg["state_dir"], "admin_password.hash"),
@@ -71,6 +81,7 @@ def main(argv=None):
     if backend:
         backend.start()
         dispatcher.start()
+        automation.start()
     mesh.start()
     panel.start()
     if cfg["role"] == "control":

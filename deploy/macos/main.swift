@@ -38,8 +38,11 @@ final class Scanner: NSObject, CBCentralManagerDelegate {
         case .resetting: state = "resetting"
         default: state = "unknown"
         }
-        emit(["state": state])
-        if central.state == .poweredOn {
+        // After a sleep the manager can come back "poweredOn" even though the user denied
+        // Bluetooth to this app: a scan then finds nothing, and nobody is told why.
+        let denied = CBCentralManager.authorization == .denied || CBCentralManager.authorization == .restricted
+        emit(["state": denied ? "unauthorized" : state])
+        if central.state == .poweredOn && !denied {
             central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: true])
         }
     }
